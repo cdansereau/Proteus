@@ -2,8 +2,8 @@ __author__ = 'Christian Dansereau'
 
 import numpy as np
 from sklearn.cluster import KMeans
-from Proteus.proteus.predic import clustering as cls
-from Proteus.proteus.matrix import tseries as ts
+from proteus.predic import clustering as cls
+from proteus.matrix import tseries as ts
 from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import MeanShift
 from sklearn.lda import LDA

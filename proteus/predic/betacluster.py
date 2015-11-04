@@ -9,7 +9,7 @@ from sklearn import linear_model
 import numpy as np
 import prediction
 from sklearn import cross_validation
-from Proteus.proteus.predic import stability 
+from proteus.predic import stability 
 
 class BetaCluster:
     '''

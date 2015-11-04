@@ -5,7 +5,7 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage
 from scipy.cluster.hierarchy import fcluster
 import numpy as np
-from Proteus.proteus.matrix import tseries as ts
+from proteus.matrix import tseries as ts
 
 def hclustering(data, t):
     row_dist = pd.DataFrame(squareform(pdist(data, metric='euclidean')))

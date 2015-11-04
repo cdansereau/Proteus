@@ -8,8 +8,8 @@ from sklearn import preprocessing
 import multiprocessing as mp
 from multiprocessing import Pool
 from scipy import stats
-from Proteus.proteus.matrix import tseries as ts
-from Proteus.proteus.predic import clustering as cls
+from proteus.matrix import tseries as ts
+from proteus.predic import clustering as cls
 
 def getkBest(x,y,k=0):
     y_val = np.unique(y)

@@ -6,8 +6,8 @@ import pandas as pd
 import numpy as np
 import scipy.io
 from os import listdir
-from Proteus.proteus.matrix import tseries as ts
-from Proteus.proteus.predic import clustering as clust
+from proteus.matrix import tseries as ts
+from proteus.predic import clustering as clust
 import nibabel as nib
 
 def organize_data(data,demograph):

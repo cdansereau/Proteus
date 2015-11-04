@@ -10,8 +10,8 @@ from sklearn.ensemble import AdaBoostClassifier
 from sklearn import svm
 import predlib as plib
 from sklearn import preprocessing
-from Proteus.proteus.matrix import tseries as ts
-from Proteus.proteus.predic import betacluster as bc
+from proteus.matrix import tseries as ts
+from proteus.predic import betacluster as bc
 from sklearn.svm import SVC
 from sklearn.svm import LinearSVC
 #data_path = '/home/cdansereau/Dropbox/McGill-publication/Papers/PredicAD/prediction_data_p2p/data_connec100_prediction.csv'
