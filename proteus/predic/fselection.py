@@ -28,7 +28,7 @@ def modelpred(x,y):
     #clf = plib.classif(x_scaled[:,candidat_f],y)
     return clf, candidat_f, w
 
-idef get_opt_model_features_nbest(x,y,w):
+def get_opt_model_features_nbest(x,y,w):
     n = len(fselect.threhold_std(w,1))
     best_score = 0
     best_clf = []
