@@ -66,61 +66,8 @@ class ConfoundsRm:
     def nConfounds(self):
         return self.nconfouds
 
-def compute_acc_noconf(x,y,verbose=False):
-    encoder = preprocessing.LabelEncoder()
-    encoder.fit(y)
-
-    # remove intra matrix mean and var
-    #x = ts.normalize_data(x)
-    #cv = cross_validation.KFold(len(y),n_folds=10)
-    cv = StratifiedKFold(y=encoder.transform(y), n_folds=10)
-    #cv = cross_validation.LeaveOneOut(data_all.shape[0])
-
-    mean_tpr = 0.0
-    mean_fpr = np.linspace(0, 1, 100)
-    all_tpr = []
-
-    total_test_score=[]
-    clf_array = []
-    bc_all = []
-
-    for i, (train, test) in enumerate(cv):
-
-        select_x = x.copy()
-        #betacluster = bc.BetaCluster(select_x[train,:],encoder.transform(y[train]),n_cluster=200,samp_ratio=0.9,k_feature=0)
-        #bc_all.append(betacluster)
-
-        #train_x = betacluster.transform(select_x[train,:])
-        #sel = VarianceThreshold()
-        #train_x = sel.fit_transform(select_x[train,:])
-        train_x = select_x[train,:]
-        train_y = encoder.transform(y[train])
-        #test_x = betacluster.transform(select_x[test,:])
-        #test_x = sel.transform(select_x[test,:])
-        test_x = select_x[test,:]
-        test_y = encoder.transform(y[test])
-
-        print train_x.shape
-        clf = SVC(kernel='linear', class_weight='auto', C=.01)
-        #clf = LinearSVC(class_weight='auto', C=0.1)
-        clf, score = plib.grid_search(clf, train_x,train_y, n_folds=10, verbose=True, detailed=True)
-
-
-        clf.fit(train_x,train_y)
-        if verbose:
-            #print('nSupport: ',clf.n_support_)
-            print "Train:",clf.score(train_x,train_y)
-            print "Test :",clf.score(test_x,test_y)
-            print "Prediction :",clf.predict(test_x)
-            print "Real Labels:",test_y
-
-        total_test_score.append( clf.score(test_x,test_y))
-
-        clf_array.append(clf)
-
-    print 'mean', np.mean(total_test_score), 'std',  np.std(total_test_score)
-    return {'mean': np.mean(total_test_score),'std': np.std(total_test_score),'data': total_test_score}
-
+def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
+    compute_acc_conf(x,y,None,verbose,balanced,loo,optimize,C)
 
 def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
     encoder = preprocessing.LabelEncoder()
@@ -153,9 +100,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
     for i, (train, test) in enumerate(cv):
 
         select_x = x.copy()
-
-        crm = ConfoundsRm(confounds[train,:],select_x[train,:])
-
+        
         #betacluster = bc.BetaCluster(crm.transform(confounds[train,:],select_x[train,:]),encoder.transform(y[train]),100,k_feature=200)
         #bc_all.append(betacluster)
 
@@ -163,32 +108,37 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
             clf = SVC(kernel='linear', class_weight='auto', C=C)
         else:
             clf = SVC(kernel='linear',C=C)
-        #clf = NuSVC(kernel='linear', nu=.01)
-        #clf = LogisticRegression(penalty='l2',C=100.)
-        #clf = LDA(solver='lsqr', shrinkage='auto')
-        #clf = LDA()
+
+        if confounds == None:
+            xtrain = select_x[train,:]
+            xtest  = select_x[test,:]
+        else:
+            crm    = ConfoundsRm(confounds[train,:],select_x[train,:])
+            xtrain = crm.transform(confounds[train,:],select_x[train,:])
+            xtest  = crm.transform(confounds[test,:],select_x[test,:])
+
+        ytrain = encoder.transform(y[train])
+        ytest = encoder.transform(y[test])
 
         #clf.probability = True
         if optimize:
-            clf, score = plib.grid_search(clf, crm.transform(confounds[train,:],select_x[train,:]),encoder.transform(y[train]), n_folds=5, verbose=False)
-        #print select_x.shape
+            clf, score = plib.grid_search(clf, xtrain,ytrain, n_folds=5, verbose=False)
 
-
-        clf.fit(crm.transform(confounds[train,:],select_x[train,:]),encoder.transform(y[train]))
-        total_test_score.append( clf.score(crm.transform(confounds[test,:],select_x[test,:]),encoder.transform(y[test])))
+        clf.fit(xtrain,ytrain)
+        total_test_score.append( clf.score(xtest,ytest))
         clf_array.append(clf)
 
-        prec.append(metrics.precision_score(encoder.transform(y[test]), clf.predict(crm.transform(confounds[test,:],select_x[test,:])) ))
-        recall.append(metrics.recall_score(encoder.transform(y[test]), clf.predict(crm.transform(confounds[test,:],select_x[test,:])) ))
+        prec.append(metrics.precision_score(ytest, clf.predict(xtest)))
+        recall.append(metrics.recall_score(ytest, xtest))
 
         if loo:
-            y_pred.append(clf.predict(crm.transform(confounds[test,:],select_x[test,:])))
+            y_pred.append(clf.predict(xtest))
         if verbose:
             print('nSupport: ',clf.n_support_)
-            print "Train:",clf.score(crm.transform(confounds[train,:],select_x[train,:]),encoder.transform(y[train]))
-            print "Test :",clf.score(crm.transform(confounds[test,:],select_x[test,:]),encoder.transform(y[test]))
-            print "Prediction :",clf.predict(crm.transform(confounds[test,:],select_x[test,:]))
-            print "Real Labels:",encoder.transform(y[test])
+            print "Train:",clf.score(xtrain,ytrain)
+            print "Test :",clf.score(xtest,ytest)
+            print "Prediction :",clf.predict(xtest)
+            print "Real Labels:",ytest
             print('Precision:',prec[-1],'Recall:',recall[-1])
 
     if loo:
