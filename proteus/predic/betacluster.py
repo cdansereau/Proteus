@@ -1,7 +1,6 @@
-from Proteus.proteus import matrix
-
 __author__ = 'Christian Dansereau'
 
+from proteus import matrix
 from ..matrix import tseries as ts
 import pandas as pd
 import clustering as cls
