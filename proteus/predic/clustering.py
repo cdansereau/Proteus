@@ -20,7 +20,7 @@ def part_inter(m,ind):
     for i1 in range(0, n_cluster-1):
         for i2 in range(i1+1, n_cluster):
             new_m[i1, i2] = np.mean(m[ind==i1+1,:][:,ind==i2+1])
-    
+
     new_m += np.triu(new_m,1).T
     return new_m
 '''
@@ -39,7 +39,7 @@ def part(m,ind):
 def projectmat(source,ind):
     '''
     source: is a matrix
-    part  : is a partition that we whant to map the data of the source in it 
+    part  : is a partition that we whant to map the data of the source in it
     '''
     n_cluster = np.max(ind)
     n = len(ind)
@@ -80,6 +80,9 @@ def ordermat(m,ind):
     order_idx = order(ind)
     return m[order_idx,:][:,order_idx]
 
+def ordermat_auto(m):
+    ind = hclustering(m, m.shape[0])
+    return ordermat(m,ind)
 
 def getWindowCluster(timeseries,nclusters=12,window_size=20):
     binary_mat = np.array([])
