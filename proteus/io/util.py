@@ -11,7 +11,7 @@ from proteus.predic import clustering as clust
 import nibabel as nib
 
 def organize_data(data,demograph):
-    data_tmp = data.loc[data.index.values]
+    data_tmp = data.loc[demograph.index.values]
     data_tmp = data_tmp.iloc[data_tmp.iloc[:,0].notnull().values]
     return data_tmp, demograph.loc[data_tmp.index.values]
 

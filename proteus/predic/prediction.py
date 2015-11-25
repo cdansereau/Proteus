@@ -129,7 +129,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
         clf_array.append(clf)
 
         prec.append(metrics.precision_score(ytest, clf.predict(xtest)))
-        recall.append(metrics.recall_score(ytest, xtest))
+        recall.append(metrics.recall_score(ytest, clf.predict(xtest)))
 
         if loo:
             y_pred.append(clf.predict(xtest))
