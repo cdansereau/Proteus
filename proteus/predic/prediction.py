@@ -87,7 +87,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
 
     total_test_score=[]
     y_pred=[]
-    clf_array = []
+    #clf_array = []
     bc_all = []
 
     prec = []
@@ -126,7 +126,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
 
         clf.fit(xtrain,ytrain)
         total_test_score.append( clf.score(xtest,ytest))
-        clf_array.append(clf)
+        #clf_array.append(clf)
 
         prec.append(metrics.precision_score(ytest, clf.predict(xtest)))
         recall.append(metrics.recall_score(ytest, clf.predict(xtest)))
@@ -146,7 +146,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
         print('Mean:', np.mean(total_test_score),'Std:', total_std_test_score,'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
         return (np.mean(total_test_score), total_std_test_score, len(y))
     else:
-        print('Mean:', np.mean(total_test_score),'Std:', np.mean(total_std_test_score),'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
+        print('Mean:', np.mean(total_test_score),'Std:', np.std(total_test_score),'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
         return (np.mean(total_test_score), np.mean(total_std_test_score))
 
 def sv_metric(n,nsv):
