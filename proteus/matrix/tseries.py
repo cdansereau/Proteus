@@ -4,6 +4,7 @@ import numpy as np
 import math
 import copy
 from numba import jit
+import math
 
 @jit
 def vec2map(v,partition):
@@ -130,3 +131,66 @@ def test_vec2mat():
     va == [2, 3, 4]
     new_a = vec2mat(va)
     assert np.all(new_a == a)
+
+def vp(x,y=1):
+    # z=vp(x,y); z = 3d cross product of x and y
+    # vp(x) is the 3d cross product matrix : vp(x)*y=vp(x,y).
+    #
+    # by Giampiero Campa.  
+    z=np.array([[  0,     -x[2],   x[1]],
+                [  x[2],   0,     -x[0]],
+                [ -x[1],   x[0],   0]])
+
+    z=np.dot(z,y)
+    return z
+
+def transf2param(transf):
+
+    if len(transf.shape)>2:
+        N = transf.shape[2]
+        rot = np.zeros([3, N])
+        tsl = np.zeros([3, N])
+        for num_n in range(N):
+            [rot[:,num_n],tsl[:,num_n]] = transf2param(transf[:,:,num_n])
+        return rot,tsl
+
+    O=transf[0:3,3]
+    R=transf[0:3,0:3]
+    d=np.round(R[:,0][2]*1e12)/1e12
+
+    if d==1:
+        y=math.atan2(R[:,1][1],R[:,1][0])
+        p=-np.pi/2
+        r=-np.pi/2
+
+    elif d==-1:
+        y=math.atan2(R[:,1][1],R[:,1][0])
+        p=np.pi/2
+        r=np.pi/2
+
+    else:
+        sg=vp(np.array([0, 0, 1]).T,R[:,0])
+        j2=sg/np.sqrt(np.dot(sg.T,sg))
+        k2=vp(R[:,0],j2)
+
+        r=math.atan2(np.dot(k2.T,R[:,1]),np.dot(j2.T,R[:,1]))
+        p=math.atan2(-R[:,0][2],k2[2])
+        y=math.atan2(-j2[0],j2[1])
+
+
+    y1=y+(1-np.sign(y)-np.sign(y)**2)*np.pi
+    p1=p+(1-np.sign(p)-np.sign(p)**2)*np.pi
+    r1=r+(1-np.sign(r)-np.sign(r)**2)*np.pi
+
+    # takes smaller values of angles
+    if np.linalg.norm([y1, p1, r1]) < np.linalg.norm([y, p, r]):
+        rot = np.array([r1,-p1,y1])
+    else:
+        rot = np.array([r,p,y])
+
+    rot = (rot/np.pi)*180 # Conversion in degrees
+    tsl = O
+    return rot,tsl
+
+
+
