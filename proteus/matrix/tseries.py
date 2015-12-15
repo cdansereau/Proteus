@@ -195,6 +195,5 @@ def transf2param(transf):
 def volterra(rot,tsl):
     rot_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],rot[:,1:]-rot[:,:-1]))
     tsl_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],tsl[:,1:]-tsl[:,:-1]))
-    print rot_dev.shape
     return np.vstack((rot,tsl,rot**2,tsl**2,rot_dev,tsl_dev,rot_dev**2,tsl_dev**2))
 
