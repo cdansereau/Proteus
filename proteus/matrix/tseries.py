@@ -10,8 +10,8 @@ import math
 def vec2map(v,partition):
     new_map = copy.deepcopy(partition)
     im = new_map.get_data()
-    
-    part = partition.get_data()  
+
+    part = partition.get_data()
     for i in range(len(v)):
         idxs = np.where(part==(i+1))
         im[idxs] = v[i]
@@ -29,13 +29,13 @@ def vol2vec(vol):
     return vec_vol
 
 @jit
-def mat2vec(m,include_diag=False): 
+def mat2vec(m,include_diag=False):
     # Hack to be compatible with matlab column-wise instead of row-wise
     if include_diag:
         inddown = np.triu_indices_from(m,0)
     else:
         inddown = np.triu_indices_from(m,1)
-    
+
     inddown = (inddown[1], inddown[0])
     return m[inddown]
 
@@ -63,7 +63,7 @@ def vec2mat(vec, val_diag=1,include_diag=False):
     return m
 
 def ts2vol(vec,part):
-    pass 
+    pass
 
 @jit
 def vec2vol(vec,part):
@@ -91,7 +91,7 @@ def get_ts(vol,part):
         #    ts_new = np.mean(vol[mask_parcel])
         #print ts_new.shape
         #print ts.shape
-        if len(ts)==0:        
+        if len(ts)==0:
             ts = np.vstack((ts_new,))
         else:
             ts = np.vstack((ts,ts_new))
@@ -192,5 +192,9 @@ def transf2param(transf):
     tsl = O
     return rot,tsl
 
-
+def volterra(rot,tsl):
+    rot_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],rot[:,1:]-rot[:,:-1]))
+    tsl_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],tsl[:,1:]-tsl[:,:-1]))
+    print rot_dev.shape
+    return np.vstack((rot,tsl,rot**2,tsl**2,rot_dev,tsl_dev,rot_dev**2,tsl_dev**2))
 
