@@ -1,3 +1,3 @@
 __author__ = 'Christian Dansereau'
 
-__all__ = ["tseries"]
+__all__ = ["tseries","deepmotion"]

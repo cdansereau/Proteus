@@ -95,7 +95,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
     
     if len(np.unique(y))==1:
         print 'Unique class: 100%', np.sum(encoder.transform(y)==0)/len(y)
-        return (1., 0.)
+        return (1., 0.,len(y))
     
     for i, (train, test) in enumerate(cv):
 
