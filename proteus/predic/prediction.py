@@ -67,7 +67,7 @@ class ConfoundsRm:
         return self.nconfouds
 
 def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
-    compute_acc_conf(x,y,None,verbose,balanced,loo,optimize,C)
+    compute_acc_conf(x,y,[],verbose,balanced,loo,optimize,C)
 
 def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
     encoder = preprocessing.LabelEncoder()
@@ -109,7 +109,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
         else:
             clf = SVC(kernel='linear',C=C)
 
-        if confounds == None:
+        if len(confounds) == 0:
             xtrain = select_x[train,:]
             xtest  = select_x[test,:]
         else:
@@ -122,7 +122,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
 
         #clf.probability = True
         if optimize:
-            clf, score = plib.grid_search(clf, xtrain,ytrain, n_folds=5, verbose=False)
+            clf, score = plib.grid_search(clf, xtrain,ytrain, n_folds=10, verbose=verbose)
 
         clf.fit(xtrain,ytrain)
         total_test_score.append( clf.score(xtest,ytest))
@@ -147,7 +147,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
         return (np.mean(total_test_score), total_std_test_score, len(y))
     else:
         print('Mean:', np.mean(total_test_score),'Std:', np.std(total_test_score),'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
-        return (np.mean(total_test_score), np.mean(total_std_test_score))
+        return (np.mean(total_test_score), np.std(total_test_score))
 
 def sv_metric(n,nsv):
     return nsv/float(n)

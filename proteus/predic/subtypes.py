@@ -8,6 +8,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import MeanShift
 from sklearn.lda import LDA
 from sklearn.neighbors.nearest_centroid import NearestCentroid
+from sklearn import preprocessing
 
 class clusteringST:
     '''
@@ -97,7 +98,7 @@ class clusteringST:
             #classes.append(np.argmin(dist_))
         return classes
 
-    def fit(self,net_data,nnet_cluster='auto',nSubtypes=3):
+    def fit_old(self,net_data,nnet_cluster='auto',nSubtypes=3):
         self.nnet_cluster = nnet_cluster
         self.nSubtypes = nSubtypes
         
@@ -132,6 +133,113 @@ class clusteringST:
 
         return self.consensus
 
+    def transform_low_scale(self,net_data):
+        # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
+        nnet_cluster = np.max(self.ind_low_scale)
+        net_data_low = []
+        net_data_low = np.zeros((net_data.shape[0],nnet_cluster,net_data.shape[2]))
+
+        for i in range(nnet_cluster):
+            # average the apropriate parcels and scale them
+            net_data_low[:,i,:] = preprocessing.scale(net_data[:,self.ind_low_scale==i+1,:].mean(axis=1), axis=1)
+
+        return net_data_low
+
+    def fit(self,net_data,nnet_cluster=7,nSubtypes=3,reshape_w=True):
+        self.nnet_cluster = nnet_cluster
+        self.nSubtypes = nSubtypes
+
+        avg_func_conn = net_data.mean(axis=0)
+
+        ind_low_scale = cls.hclustering(avg_func_conn,nnet_cluster)
+        self.ind_low_scale = ind_low_scale
+        # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
+        net_data_low = self.transform_low_scale(net_data)
+        #net_data_low = []
+        #net_data_low = np.zeros((net_data.shape[0],nnet_cluster,net_data.shape[2]))
+        #for i in range(nnet_cluster):
+        #    net_data_low[:,i,:] = preprocessing.scale(net_data[:,ind_low_scale==i+1,:].mean(axis=1), axis=1)
+        self.net_data_low = net_data_low
+
+        # st_templates --> Dimensions: nNetwork_low, nSubtypes, nNetwork
+        st_templates = []
+        for i in range(len(net_data_low[1])):
+            # indentity matrix of the corelation between subjects
+            #tmp_subj_identity = np.corrcoef(net_data_low[:,i,:])
+            #ind_st = cls.hclustering(tmp_subj_identity,nSubtypes)
+            # subjects X network_nodes
+            ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
+
+            for j in range(nSubtypes):
+                if j == 0:
+                    st_templates_tmp = net_data_low[:,i,:][ind_st==j+1,:].mean(axis=0)[np.newaxis,...]
+                else:
+                    st_templates_tmp = np.vstack((st_templates_tmp,net_data_low[:,i,:][ind_st==j+1,:].mean(axis=0)[np.newaxis,...]))
+
+            if i == 0:
+                st_templates = st_templates_tmp[np.newaxis,...]
+            else:
+                st_templates = np.vstack((st_templates,st_templates_tmp[np.newaxis,...]))
+
+        self.st_templates = st_templates
+        #print st_low_templates[0,:,:]
+        #st_templates = swapaxes(st_templates, 0, 1)
+
+        # calculate the weights for each subjects
+        #W = np.zeros((net_data.shape[0],st_templates.shape[0],nSubtypes))
+        #for i in range(net_data.shape[0]):
+        #    for j in range(st_templates.shape[0]):
+        #        for k in range(st_templates.shape[1]):
+        #            # Demean
+        #            #average_template = net_data_low[:,j,:].mean(axis=0)
+        #            average_template = st_templates[j,:,:].mean(axis=0)
+        #            dm_map = net_data_low[i,j,:] - average_template
+        #            dm_map = preprocessing.scale(dm_map)
+        #            st_dm_map = st_templates[j,k,:] - average_template
+        #            W[i,j,k] = np.corrcoef(st_dm_map,dm_map)[-1,0:-1]
+
+        # calculate the weights for each subjects
+        self.W =  self.compute_weights(net_data_low)
+        if reshape_w:
+            return self.reshapeW(self.W)
+        else:
+            return self.W
+
+    def compute_weights(self,net_data_low):
+        # calculate the weights for each subjects
+        W = np.zeros((net_data_low.shape[0],self.st_templates.shape[0],self.st_templates.shape[1]))
+        for i in range(net_data_low.shape[0]):
+            for j in range(self.st_templates.shape[0]):
+                for k in range(self.st_templates.shape[1]):
+                    # Demean
+                    #average_template = net_data_low[:,j,:].mean(axis=0)
+                    average_template = self.st_templates[j,:,:].mean(axis=0)
+                    dm_map = net_data_low[i,j,:] - average_template
+                    dm_map = preprocessing.scale(dm_map)
+                    st_dm_map = self.st_templates[j,k,:] - average_template
+                    W[i,j,k] = np.corrcoef(st_dm_map,dm_map)[-1,0:-1]
+
+        return W
+
+    def transform(self,net_data,reshape_w=True):
+        '''
+            Calculate the weights for each sub-types previously computed
+        '''
+        # compute the low scale version of the data
+        net_data_low = self.transform_low_scale(net_data)
+
+        # calculate the weights for each subjects
+        W = self.compute_weights(net_data_low)
+
+        if reshape_w:
+            return self.reshapeW(W)
+        else:
+            return W
+
+    def reshapeW(self,W):
+        # reshape the matrix from [subjects, Nsubtypes, weights] to [subjects, vector of weights]
+        xw = W.reshape((W.shape[0], W.shape[1]*W.shape[2]))
+        return xw
 
     def fit_dev(self,net_data,nnet_cluster='auto',nSubtypes=3):
         self.nnet_cluster = nnet_cluster

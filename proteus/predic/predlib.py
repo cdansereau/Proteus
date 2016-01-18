@@ -61,7 +61,8 @@ def grid_search(clf, x, y, n_folds=10, verbose=True, detailed=False):
         # 10 is often helpful. Using a basis of 2, a finer
         # tuning can be achieved but at a much higher cost.
         """
-        print("Running grid search ...")
+        if verbose:
+            print("Running grid search ...")
 
         #C_range = (10.0 ** np.arange(-2, 3))
         if detailed:
