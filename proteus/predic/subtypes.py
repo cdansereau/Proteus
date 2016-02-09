@@ -133,7 +133,7 @@ class clusteringST:
 
         return self.consensus
 
-    def transform_low_scale(self,net_data):
+    def transform_low_scale_old(self,net_data):
         # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
         nnet_cluster = np.max(self.ind_low_scale)
         net_data_low = []
@@ -141,24 +141,19 @@ class clusteringST:
 
         for i in range(nnet_cluster):
             # average the apropriate parcels and scale them
-            net_data_low[:,i,:] = preprocessing.scale(net_data[:,self.ind_low_scale==i+1,:].mean(axis=1), axis=1)
-
+            #net_data_low[:,i,:] = preprocessing.scale(net_data[:,self.ind_low_scale==i+1,:].mean(axis=1), axis=1)
+            net_data_low[:,i,:] = net_data[:,self.ind_low_scale==i+1,:].mean(axis=1)
         return net_data_low
 
-    def fit(self,net_data,nnet_cluster=7,nSubtypes=3,reshape_w=True):
-        self.nnet_cluster = nnet_cluster
+    def fit(self,net_data_low,nSubtypes=3,reshape_w=True):
+        self.nnet_cluster = net_data_low.shape[1]
         self.nSubtypes = nSubtypes
 
-        avg_func_conn = net_data.mean(axis=0)
+        #ind_low_scale = cls.get_ind_high2low(low_res_template,orig_template)
+        #self.ind_low_scale = ind_low_scale
 
-        ind_low_scale = cls.hclustering(avg_func_conn,nnet_cluster)
-        self.ind_low_scale = ind_low_scale
         # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
-        net_data_low = self.transform_low_scale(net_data)
-        #net_data_low = []
-        #net_data_low = np.zeros((net_data.shape[0],nnet_cluster,net_data.shape[2]))
-        #for i in range(nnet_cluster):
-        #    net_data_low[:,i,:] = preprocessing.scale(net_data[:,ind_low_scale==i+1,:].mean(axis=1), axis=1)
+        #net_data_low = transform_low_scale(ts_data,self.ind_low_scale)
         self.net_data_low = net_data_low
 
         # st_templates --> Dimensions: nNetwork_low, nSubtypes, nNetwork
@@ -168,6 +163,7 @@ class clusteringST:
             #tmp_subj_identity = np.corrcoef(net_data_low[:,i,:])
             #ind_st = cls.hclustering(tmp_subj_identity,nSubtypes)
             # subjects X network_nodes
+            #ind_st = cls.hclustering(net_data_low[:,i,:]-np.mean(net_data_low[:,i,:],axis=0),nSubtypes)
             ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
 
             for j in range(nSubtypes):
@@ -182,21 +178,6 @@ class clusteringST:
                 st_templates = np.vstack((st_templates,st_templates_tmp[np.newaxis,...]))
 
         self.st_templates = st_templates
-        #print st_low_templates[0,:,:]
-        #st_templates = swapaxes(st_templates, 0, 1)
-
-        # calculate the weights for each subjects
-        #W = np.zeros((net_data.shape[0],st_templates.shape[0],nSubtypes))
-        #for i in range(net_data.shape[0]):
-        #    for j in range(st_templates.shape[0]):
-        #        for k in range(st_templates.shape[1]):
-        #            # Demean
-        #            #average_template = net_data_low[:,j,:].mean(axis=0)
-        #            average_template = st_templates[j,:,:].mean(axis=0)
-        #            dm_map = net_data_low[i,j,:] - average_template
-        #            dm_map = preprocessing.scale(dm_map)
-        #            st_dm_map = st_templates[j,k,:] - average_template
-        #            W[i,j,k] = np.corrcoef(st_dm_map,dm_map)[-1,0:-1]
 
         # calculate the weights for each subjects
         self.W =  self.compute_weights(net_data_low)
@@ -212,8 +193,8 @@ class clusteringST:
             for j in range(self.st_templates.shape[0]):
                 for k in range(self.st_templates.shape[1]):
                     # Demean
-                    #average_template = net_data_low[:,j,:].mean(axis=0)
-                    average_template = self.st_templates[j,:,:].mean(axis=0)
+                    average_template = np.median(self.net_data_low[:,j,:],axis=0)
+                    #average_template = self.st_templates[j,:,:].mean(axis=0)
                     dm_map = net_data_low[i,j,:] - average_template
                     dm_map = preprocessing.scale(dm_map)
                     st_dm_map = self.st_templates[j,k,:] - average_template
@@ -221,12 +202,12 @@ class clusteringST:
 
         return W
 
-    def transform(self,net_data,reshape_w=True):
+    def transform(self,net_data_low,reshape_w=True):
         '''
             Calculate the weights for each sub-types previously computed
         '''
         # compute the low scale version of the data
-        net_data_low = self.transform_low_scale(net_data)
+        #net_data_low = transform_low_scale(ts_data,self.ind_low_scale)
 
         # calculate the weights for each subjects
         W = self.compute_weights(net_data_low)
@@ -269,6 +250,28 @@ class clusteringST:
         #print "score: ", self.clf_subtypes.score(self.assign_net,self.consensus)
 
         return self.consensus
+
+def transform_low_scale(ts_data,ind_low_scale):
+    # compute the connectivity for at template at a given resolution
+    allsubj_lowxhigh_conn=[]
+    for i in range(len(ts_data)):
+        ind_data = ts_data[i]
+        tmp_ts_array =[]
+        max_id_scale = ind_low_scale.max()
+        # compute the time series for the low scale
+        for j in range(max_id_scale):
+            if j==0:
+                tmp_ts_array = np.mean(ind_data[ind_low_scale==j+1,:],axis=0)
+            else:
+                tmp_ts_array = np.vstack((tmp_ts_array,np.mean(ind_data[ind_low_scale==j+1,:],axis=0)))
+
+        # calculation of the correlation between each timeseries
+        allsubj_lowxhigh_conn.append(np.corrcoef(np.vstack((ind_data,tmp_ts_array)))[-max_id_scale:,:][:,:-max_id_scale])
+    # reorder the dimensions
+    allsubj_lowxhigh_conn = np.dstack(allsubj_lowxhigh_conn)
+    net_data_low = np.swapaxes(np.swapaxes(allsubj_lowxhigh_conn,1,2),0,1)
+    # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
+    return net_data_low
 
 def reshape_netwise(data_scale):
     # Reshape with the following dim: nSubjects, nfeatures, nfeatures

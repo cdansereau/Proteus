@@ -68,11 +68,11 @@ def grid_search(clf, x, y, n_folds=10, verbose=True, detailed=False):
         if detailed:
             C_range = np.arange(0.0005, 0.02,0.001)
         else:
-            C_range = (10.0 ** np.arange(-2, 1))
+            C_range = (10.0 ** np.arange(0.5,-2,-0.05))
         gamma_range = (0)
         if hasattr(clf,'kernel'):
             if clf.kernel != 'linear':
-                gamma_range = (10.0 ** np.arange(-3, 1)) 
+                gamma_range = (10.0 ** np.arange(-3, 1, 0.05)) 
                 param_grid = dict(gamma=gamma_range, C=C_range)
             else:
                 param_grid = dict(C=C_range)

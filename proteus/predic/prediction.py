@@ -47,7 +47,7 @@ def estimate_unbalanced_std(y1,y2):
 class ConfoundsRm:
 
     def __init__(self, confounds, data,intercept=True):
-        self.fit(data, confounds)
+        self.fit(confounds,data)
 
     def fit(self, confounds, data,intercept=True):
         if len(confounds) == 0:
@@ -55,7 +55,7 @@ class ConfoundsRm:
         else:
             self.nconfounds = confounds.shape[1]
             self.reg = linear_model.LinearRegression(fit_intercept=intercept)
-            self.reg.fit(data, confounds)
+            self.reg.fit(confounds,data)
 
     def transform(self, confounds, data):
         # compute the residual error
@@ -64,7 +64,7 @@ class ConfoundsRm:
         else:
             return data - self.reg.predict(confounds)
     def nConfounds(self):
-        return self.nconfouds
+        return self.nconfounds
 
 def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
     compute_acc_conf(x,y,[],verbose,balanced,loo,optimize,C)

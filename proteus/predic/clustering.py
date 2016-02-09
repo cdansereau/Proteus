@@ -85,6 +85,14 @@ def ordermat_auto(m):
     ind = hclustering(m, m.shape[0])
     return ordermat(m,ind)
 
+def get_ind_high2low(template_low,template_high):
+    n_cls = np.max(template_high)
+    ind_low_scale = []
+    for i in range(n_cls):
+        ind_low_scale.append(int(np.mean(template_low[template_high==i+1])))
+
+    return np.array(ind_low_scale)
+
 def getWindowCluster(timeseries,nclusters=12,window_size=20):
     binary_mat = np.array([])
     for i in range(0,timeseries.shape[1]-window_size+1,1):
@@ -101,18 +109,19 @@ def getWindowCluster(timeseries,nclusters=12,window_size=20):
     print binary_mat.shape
     return binary_mat
 
-def getWindows(timeseries,window_size=20):
-    conn_mat = np.array([])
+def getWindows(timeseries,window_size=20,vectorize=True):
+    conn_mat = []
     for i in range(0,timeseries.shape[1]-window_size+1,1):
-
-        #clust_ind = hclustering(timeseries[:,i:i+window_size],nclusters)
-        tmp_conn_mat = np.corrcoef(timeseries[:,i:i+window_size])
-        if i==0:
-            conn_mat = ts.mat2vec(tmp_conn_mat)[np.newaxis,:]
+        if vectorize:
+            tmp_conn_mat = np.corrcoef(timeseries[:,i:i+window_size])
+            if i==0:
+                conn_mat = ts.mat2vec(tmp_conn_mat)[np.newaxis,:]
+            else:
+                conn_mat = np.vstack((conn_mat, ts.mat2vec(tmp_conn_mat)[np.newaxis,:]))
         else:
-            conn_mat = np.vstack((conn_mat, ts.mat2vec(tmp_conn_mat)[np.newaxis,:]))
-
-
+            tmp_conn_mat = np.corrcoef(timeseries[:,i:i+window_size])
+            conn_mat.append(tmp_conn_mat)
+    conn_mat = np.array(conn_mat)
     #print conn_mat.shape
     return conn_mat
 
