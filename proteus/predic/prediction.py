@@ -66,10 +66,10 @@ class ConfoundsRm:
     def nConfounds(self):
         return self.nconfounds
 
-def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
-    compute_acc_conf(x,y,[],verbose,balanced,loo,optimize,C)
+def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,nfolds=10,gs_kfolds=5,optimize=True,C=.01):
+    return compute_acc_conf(x,y,[],verbose,balanced,loo,nfolds,gs_kfolds,optimize,C)
 
-def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimize=True,C=.01):
+def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,nfolds=10,gs_kfolds=5,optimize=True,C=.01):
     encoder = preprocessing.LabelEncoder()
     encoder.fit(y)
 
@@ -79,7 +79,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
     if loo:
         cv = cross_validation.LeaveOneOut(len(y))
     else:
-        cv = StratifiedKFold(y=encoder.transform(y), n_folds=10)
+        cv = StratifiedKFold(y=encoder.transform(y), n_folds=nfolds)
 
     mean_tpr = 0.0
     mean_fpr = np.linspace(0, 1, 100)
@@ -122,7 +122,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
 
         #clf.probability = True
         if optimize:
-            clf, score = plib.grid_search(clf, xtrain,ytrain, n_folds=10, verbose=verbose)
+            clf, score = plib.grid_search(clf, xtrain,ytrain, n_folds=gs_kfolds, verbose=verbose)
 
         clf.fit(xtrain,ytrain)
         total_test_score.append( clf.score(xtest,ytest))
@@ -140,14 +140,14 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,optimiz
             print "Prediction :",clf.predict(xtest)
             print "Real Labels:",ytest
             print('Precision:',prec[-1],'Recall:',recall[-1])
-
+    y_pred = np.array(y_pred)[:,0]
     if loo:
         total_std_test_score = estimate_std(metrics.accuracy_score(encoder.transform(y), np.array(y_pred)),len(y))
         print('Mean:', np.mean(total_test_score),'Std:', total_std_test_score,'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
-        return (np.mean(total_test_score), total_std_test_score, len(y))
+        return [np.mean(total_test_score), total_std_test_score, len(y),y_pred]
     else:
         print('Mean:', np.mean(total_test_score),'Std:', np.std(total_test_score),'AvgPrecision:',np.mean(prec),'AvgRecall:',np.mean(recall) )
-        return (np.mean(total_test_score), np.std(total_test_score))
+        return [np.mean(total_test_score), np.std(total_test_score),len(y)]
 
 def sv_metric(n,nsv):
     return nsv/float(n)

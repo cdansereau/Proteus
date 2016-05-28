@@ -68,7 +68,7 @@ def grid_search(clf, x, y, n_folds=10, verbose=True, detailed=False):
         if detailed:
             C_range = np.arange(0.0005, 0.02,0.001)
         else:
-            C_range = (10.0 ** np.arange(0.5,-2,-0.05))
+            C_range = (10.0 ** np.arange(0.5,-2,-0.25))
         gamma_range = (0)
         if hasattr(clf,'kernel'):
             if clf.kernel != 'linear':
@@ -77,7 +77,10 @@ def grid_search(clf, x, y, n_folds=10, verbose=True, detailed=False):
             else:
                 param_grid = dict(C=C_range)
 
-            cv = StratifiedKFold(y=y, n_folds=n_folds)
+            if n_folds==1:
+                cv = cross_validation.LeaveOneOut(len(y))
+            else:
+                cv = StratifiedKFold(y=y, n_folds=n_folds)
             #cv = cross_validation.LeaveOneOut(len(y))
             #grid = GridSearchCV(clf, param_grid=param_grid, cv=cv, n_jobs=-1, scoring='f1')
             grid = GridSearchCV(clf, param_grid=param_grid, cv=cv, n_jobs=-1)

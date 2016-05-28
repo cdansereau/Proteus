@@ -29,23 +29,23 @@ def mat(m, lim=None, cbar=True, show_axis=True,cm=None):
     if lim == None:
         #shrunk_cmap = shiftedColorMap(orig_cmap, start=0.15, midpoint=0.75, stop=0.85, name='shrunk')
         im2 = plt.imshow(m, interpolation="none", cmap=shifted_cmap)
-        
+
         #im2 = ax.imshow(m, interpolation="none", cmap=shrunk_cmap)
     else:
         im2 = plt.imshow(m, interpolation="none", cmap=shifted_cmap, vmin=lim[0], vmax=lim[1])
-    
+
     #plt.colorbar(im2)
 
     # delete the colorbar if specified
     if cbar:
         plt.colorbar(im2,fraction=0.046, pad=0.04)
-        
+
         #fig.delaxes(fig.axes[1])
     if show_axis == False:
         frame1 = plt.gca()
         frame1.axes.get_xaxis().set_visible(False)
         frame1.axes.get_yaxis().set_visible(False)
-    
+
     #cax = ax.imshow(m, interpolation='none', cmap=shifted_cmap)
     #cbar = fig.colorbar(cax, orientation='vertical')
     #mplmatshow(m, cmap=cm.Spectral)
@@ -88,7 +88,7 @@ def get_cmap(data, lim=None):
     else:
         pass
         #shifted_cmap = shiftedColorMap(orig_cmap, midpoint=calcul_zero(*lim), name='shifted')
-    
+
     if len(np.unique(data))==2:
         shifted_cmap = cm.gray
     return shifted_cmap

@@ -13,7 +13,7 @@ from sklearn import preprocessing
 class clusteringST:
     '''
     Identification of sub-types for prediction
-    ''' 
+    '''
 
     def getClusters(self,net_data):
         self.avg_bin_mat = np.zeros((net_data.shape[0],net_data.shape[0]))
@@ -28,15 +28,15 @@ class clusteringST:
             n_clusters_ = len(np.unique(labels))
             #print(labels,cluster_centers.shape,n_clusters_)
             #bin_mat = np.zeros(avg_bin_mat.shape)
-             
+
             bin_mat = cls.ind2matrix(labels+1)>0
             self.avg_bin_mat += bin_mat
             self.avg_n_clusters += n_clusters_
-    
+
         self.avg_bin_mat /= net_data.shape[2]
         self.avg_n_clusters /= net_data.shape[2]
         return self.avg_n_clusters
-    
+
     def getMeanClustering(self):
         return self.avg_bin_mat
 
@@ -50,14 +50,14 @@ class clusteringST:
         valid_cluster = []
         self.avg_bin_mat = np.zeros((net_data.shape[0],net_data.shape[0]))
         self.avg_n_clusters = 0
-        
+
         for i in range(net_data.shape[2]):
             # Compute clustering with for each network
             if algo == 'kmeans':
                 clust = KMeans(init='k-means++', n_clusters=ncluster, n_init=10)
             else:
                 clust = MeanShift()
-            
+
             #t0 = time.time()
             clust.fit(net_data[:,:,i])
             #t_batch = time.time() - t0
@@ -65,12 +65,12 @@ class clusteringST:
             bin_mat = cls.ind2matrix(clust.labels_+1)>0
             self.avg_bin_mat += bin_mat
             self.avg_n_clusters += len(np.unique(clust.labels_))
-            
+
             valid_cluster.append(clust)
             valid_net_idx.append(i)
         self.avg_bin_mat /= net_data.shape[2]
         self.avg_n_clusters /= net_data.shape[2]
-        
+
         return valid_cluster, valid_net_idx
 
 
@@ -84,18 +84,6 @@ class clusteringST:
             classes = np.hstack((classes,dist_))
             #classes.append(np.argmin(dist_))
         return classes
-
-    def transform_low_scale_old(self,net_data):
-        # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
-        nnet_cluster = np.max(self.ind_low_scale)
-        net_data_low = []
-        net_data_low = np.zeros((net_data.shape[0],nnet_cluster,net_data.shape[2]))
-
-        for i in range(nnet_cluster):
-            # average the apropriate parcels and scale them
-            #net_data_low[:,i,:] = preprocessing.scale(net_data[:,self.ind_low_scale==i+1,:].mean(axis=1), axis=1)
-            net_data_low[:,i,:] = net_data[:,self.ind_low_scale==i+1,:].mean(axis=1)
-        return net_data_low
 
     def fit(self,net_data_low,nSubtypes=3,reshape_w=True):
         self.flag_2level = False
@@ -317,7 +305,7 @@ class clusteringST:
 
         return self.consensus
 
-def transform_low_scale(ts_data,ind_low_scale):
+def transform_low_scale(ts_data,ind_low_scale,normalize=True):
     # compute the connectivity for at template at a given resolution
     allsubj_lowxhigh_conn=[]
     for i in range(len(ts_data)):
@@ -344,15 +332,15 @@ def reshape_netwise(data_scale):
     for i in range(0,data_scale.shape[0]):
         if i==0:
             all_subjmat = ts.vec2mat(data_scale[i,:])[np.newaxis,...]
-        else:        
+        else:
             all_subjmat = np.vstack((all_subjmat,ts.vec2mat(data_scale[i,:])[np.newaxis,...]))
-            
+
     #print all_subjmat.shape
     return all_subjmat
 
 def format_nets(data, select_idx=[]):
     list_data = []
-    for n in range(0,len(data)):        
+    for n in range(0,len(data)):
         #tranform in matrix format
         if len(select_idx) > 0:
             clean_data = data[n][select_idx,:]
@@ -362,7 +350,7 @@ def format_nets(data, select_idx=[]):
         for i in range(0,tmp_mat.shape[2]):
             select_x = tmp_mat[:,:,i]
             list_data.append(select_x)
-    return list_data 
+    return list_data
 
 def convSubScale(net_data,indtoconv):
     new_data = np.zeros((net_data.shape[0],net_data.shape[1],np.max(indtoconv)))
