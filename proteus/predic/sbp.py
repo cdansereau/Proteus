@@ -51,14 +51,17 @@ class sbp:
         contrast = np.hstack(([0,1],np.repeat(0,confounds.shape[1])))#[0,1,0,0,0]
         x_ = np.vstack((np.ones_like(y),y,confounds.T)).T
 
+        #contrast = np.hstack(([0,1]))#[0,1,0,0,0]
+        #x_ = np.vstack((np.ones_like(y),y)).T 
+
         labels, regression_result  = nsglm.session_glm(np.array(xw),x_)
         cont_results = nsglm.compute_contrast(labels,regression_result, contrast,contrast_type='t')
         pval = cont_results.p_value()
         results = smm.multipletests(pval, alpha=0.01, method='fdr_bh')
         w_select = np.where(results[0])[0]
         #w_select = w_select[np.argsort(pval[np.where(results[0])])]
-        if len(w_select)<10:
-            w_select = np.argsort(pval)[:10]
+        if len(w_select)<4:
+            w_select = np.argsort(pval)[:4]
         else:
             w_select = w_select[np.argsort(pval[np.where(results[0])])]
         #w_select = get_stable_w(xw[train_index,:],y_tmp[train_index],confounds[train_index,:],6)
@@ -131,7 +134,7 @@ class sbp:
         r2.wait()
         pool.terminate()
         pool.join()
-        self.scores = np.array(self.scores)
+        self.scores = np.array(self.scores)[0,:,:]
 
 class TwoLevelsPrediction:
     '''
@@ -159,7 +162,7 @@ class TwoLevelsPrediction:
     def predict(self,xw):
         y_pred1 = self.clf1.predict(xw)
         y_pred2 = self.clf2.decision_function(xw)
-        return np.array([y_pred1,y_pred2])
+        return np.array([y_pred1,y_pred2]).T
 
 def estimate_hitmiss(clf,x,y):
     # Perform a LOO to estimate the actual HM
