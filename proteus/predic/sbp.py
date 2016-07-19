@@ -10,7 +10,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import MeanShift
 from sklearn.neighbors.nearest_centroid import NearestCentroid
 from sklearn import preprocessing
-
+from sklearn.feature_selection import RFECV
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.grid_search import GridSearchCV
@@ -65,7 +65,9 @@ class sbp:
         else:
             w_select = w_select[np.argsort(pval[np.where(results[0])])]
         #w_select = get_stable_w(xw[train_index,:],y_tmp[train_index],confounds[train_index,:],6)
-        print("Feature selected: {})".format(w_select))
+        # Cancel the selection
+        #w_select = np.where(results[0]!=-1)[0]
+        #print("Feature selected: {})".format(w_select))
 
         ### Include extra covariates
         if len(extra_var)!=0:
@@ -81,6 +83,7 @@ class sbp:
         if verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
         ### save parameters
+        self.median_template = np.median(net_data_low_main,axis=0)
         self.cf_rm = cf_rm
         self.st = st_
         self.w_select = w_select
@@ -116,7 +119,7 @@ class sbp:
             self.fit(net_data_low_main[train_index,...],y[train_index],confounds[train_index,...],verbose=False)
 
             tmp_scores = self.predict(net_data_low_main[test_index,...],y[test_index],confounds[test_index,...])
-            self.scores.append(np.hstack((y[test_index],tmp_scores[0][0],tmp_scores[1][0])))
+            self.scores.append(np.hstack((y[test_index],tmp_scores[0][0],tmp_scores[0][1])))
         self.scores = np.array(self.scores)
 
     def estimate_acc_multicore(self,net_data_low_main,y,confounds,n_subtypes=10):
@@ -134,32 +137,61 @@ class sbp:
         r2.wait()
         pool.terminate()
         pool.join()
-        self.scores = np.array(self.scores)[0,:,:]
+        self.scores = np.array(self.scores)
 
 class TwoLevelsPrediction:
     '''
     2 Level prediction
     '''
 
-    def fit(self,xw,y,gs=10):
+    def fit(self,x,y,gs=10):
+        xw = x.copy()
         #clf = SVC(kernel='linear', class_weight='auto', C=.1,probability=False)
-        clf = LogisticRegression(C=10**0.1,class_weight='auto')
+        clf = LogisticRegression(C=.01,class_weight='auto',penalty='l2')
+
+        '''
+        # wrapper feature selection
+        rfecv = RFECV(estimator=clf, step=1, cv=StratifiedKFold(y, 3), scoring='f1')#accuracy
+        rfecv.fit(xw, y)
+        print("Optimal number of features : %d" % rfecv.n_features_)
+        print("ids: {}".format((rfecv.ranking_<=5).sum()))
+        print rfecv.grid_scores_
+        self.rfecv = rfecv
+        if rfecv.support_.sum()>10:
+            self.w_select = rfecv.support_
+        else:
+            self.w_select = rfecv.ranking_<=10
+        '''
+        xw = xw#[:,self.w_select]
+
+        #self.mask_selection = (np.ones((1,xw.shape[1]))==1)[0,:]
+        ## Optimize the hyper parameters
+        # Stage 1
+        #param_grid = dict(C=(np.array([5,3,1])))
         param_grid = dict(C=(np.arange(3,1,-0.5)))
-        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedKFold(y,n_folds=gs), n_jobs=-1)
+        #param_grid = dict(C=(np.array([0.01, 0.1, 1, 10, 100, 1000])))
+        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedKFold(y,n_folds=gs), n_jobs=-1,scoring='accuracy')
         gridclf.fit(xw,y)
         clf = gridclf.best_estimator_
+        print clf
+        print clf.coef_
         hm_y,y_pred_train = estimate_hitmiss(clf,xw,y)
 
+        #Stage 2
+        clf2 = LogisticRegression(C=10**0.1,class_weight='auto',penalty='l2')
         param_grid = dict(C=(np.arange(3,1,-0.5)))
-        clf2 = LogisticRegression(C=10**0.1,class_weight='auto')
-        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1)
+        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1,scoring='accuracy')
         gridclf.fit(xw,hm_y)
         clf2 = gridclf.best_estimator_
         #clf2.fit(xw[train_index,:][:,idx_sz],hm_y)
+        print clf2
+        print clf2.coef_
+
         self.clf1 = clf
         self.clf2 = clf2
 
-    def predict(self,xw):
+    def predict(self,x):
+        xw = x.copy()#[:,self.w_select]
         y_pred1 = self.clf1.predict(xw)
         y_pred2 = self.clf2.decision_function(xw)
         return np.array([y_pred1,y_pred2]).T
