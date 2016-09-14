@@ -7,15 +7,11 @@ from numba import jit
 import math
 
 @jit
-def vec2map(v,partition):
-    new_map = copy.deepcopy(partition)
-    im = new_map.get_data()
-
-    part = partition.get_data()
-    for i in range(len(v)):
-        idxs = np.where(part==(i+1))
-        im[idxs] = v[i]
-    return new_map
+def vec2map(vec,vol):
+    new_vol = copy.deepcopy(vol)
+    mask = new_vol.get_data()>0
+    new_vol.get_data()[mask] = vec
+    return new_vol
 
 def normalize_data(x):
     x1 = x.copy()
@@ -73,6 +69,21 @@ def vec2vol(vec,part):
         vol[idxs] = vec[idx]
 
     return vol
+
+def corr(ref_ts,voxel_ts):
+    '''
+        ref_ts (regions X time)
+        voxel_ts (voxels X time)
+    '''
+    corr_mat = []
+    for ii in range(voxel_ts.shape[0]):
+        corr_mat.append(np.corrcoef(voxel_ts[ii,:],ref_ts)[0,:][1:])
+
+    # put all constant value that gave Nan to zero
+    corr_mat = np.nan_to_num(np.array(corr_mat).T)
+    # fisher transform
+    #corr_mat = np.arctanh(corr_mat)
+    return corr_mat
 
 @jit
 def get_ts(vol,part):

@@ -44,13 +44,24 @@ def estimate_unbalanced_std(y1,y2):
     #return 0.5*(estimate_std(p0,len(idx_0)) + estimate_std(p1,len(idx_1)))
     return 0.5*np.sqrt(estimate_std(p0,len(idx_0)) + estimate_std(p1,len(idx_1)))
 
+def get_corrvox(data_ts,head_mask, regions):
+    # remove GS
+    cf_rm = ConfoundsRm(data_ts[head_mask].mean(0).reshape(-1,1),data_ts[head_mask].T,intercept=False)
+    data_ts[head_mask] = cf_rm.transform(data_ts[head_mask].mean(0).reshape(-1,1),data_ts[head_mask].T).T
+    # extract time series
+    ts_regions = ts.get_ts(data_ts,regions)
+    ts_allvox = data_ts[head_mask]
+    # compute correlations
+    return ts.corr(ts_regions,ts_allvox)
+
 class ConfoundsRm:
 
-    def __init__(self, confounds, data,intercept=True):
-        self.fit(confounds,data)
+    def __init__(self, confounds, data, intercept=True):
+        self.fit(confounds, data, intercept)
 
-    def fit(self, confounds, data,intercept=True):
-        if len(confounds) == 0:
+    def fit(self, confounds, data, intercept=True):
+        if confounds == []:
+            print('No confounds')
             self.nconfounds = 0
         else:
             self.nconfounds = confounds.shape[1]
@@ -59,7 +70,7 @@ class ConfoundsRm:
 
     def transform(self, confounds, data):
         # compute the residual error
-        if self.nconfounds == True:
+        if self.nconfounds == 0:
             return data
         else:
             return data - self.reg.predict(confounds)

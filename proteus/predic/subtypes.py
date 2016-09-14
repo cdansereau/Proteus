@@ -6,7 +6,7 @@ from proteus.predic import clustering as cls
 from proteus.matrix import tseries as ts
 from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import MeanShift
-from sklearn.lda import LDA
+#from sklearn.lda import LDA
 from sklearn.neighbors.nearest_centroid import NearestCentroid
 from sklearn import preprocessing
 
@@ -325,6 +325,9 @@ def transform_low_scale(ts_data,ind_low_scale,normalize=True):
     allsubj_lowxhigh_conn = np.dstack(allsubj_lowxhigh_conn)
     net_data_low = np.swapaxes(np.swapaxes(allsubj_lowxhigh_conn,1,2),0,1)
     # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
+
+    # replace nan values by zero (corrcoef output nan whe series are constant!)
+    net_data_low = np.nan_to_num(net_data_low)
     return net_data_low
 
 def reshape_netwise(data_scale):

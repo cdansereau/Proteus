@@ -8,8 +8,9 @@ import numpy as np
 from proteus.matrix import tseries as ts
 
 def hclustering(data, t):
-    #row_dist = pd.DataFrame(squareform(pdist(data, metric='euclidean')))
-    row_dist = np.corrcoef(data)
+    row_dist = pd.DataFrame(squareform(pdist(data, metric='euclidean')))
+    #row_dist = np.corrcoef(data)
+    #row_dist = data
     row_clusters = linkage(row_dist, method='ward')
     ind = fcluster(row_clusters, t, criterion='maxclust')
     return ind
