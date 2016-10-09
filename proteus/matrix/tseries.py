@@ -63,10 +63,19 @@ def ts2vol(vec,part):
 
 @jit
 def vec2vol(vec,part):
-    vol = np.zeros(part.shape)
-    for idx in range(0,len(vec)):
-        idxs = np.where(part==(idx+1))
-        vol[idxs] = vec[idx]
+    if len(np.unique(part))==2:
+        # this is a binary mask
+        if len(vec.shape)==2:
+            vol = np.zeros((part.shape[0],part.shape[1],part.shape[2],vec.shape[1])).astype(float)
+        else:
+            vol = np.zeros_like(part).astype(float)
+        vol[part] = vec
+    else:
+        # this is a multi partition
+        vol = np.zeros(part.shape)
+        for idx in range(0,len(vec)):
+            idxs = np.where(part==(idx+1))
+            vol[idxs] = vec[idx]
 
     return vol
 
