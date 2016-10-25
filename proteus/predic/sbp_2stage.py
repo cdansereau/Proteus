@@ -11,9 +11,9 @@ from sklearn.cluster import MeanShift
 from sklearn.neighbors.nearest_centroid import NearestCentroid
 from sklearn import preprocessing
 from sklearn.feature_selection import RFECV
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.grid_search import GridSearchCV
+from sklearn.svm import SVC,LinearSVC,l1_min_c
+from sklearn.linear_model import LogisticRegression,LogisticRegressionCV
+from sklearn.grid_search import GridSearchCV,RandomizedSearchCV
 from sklearn.cross_validation import LeaveOneOut, LeavePOut, StratifiedKFold,StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score
 from nistats import glm as nsglm
@@ -31,21 +31,31 @@ class SBP:
     '''
     Pipeline for subtype base prediction
     '''
-    def fit(self,net_data_low_main,y,confounds,n_subtypes,flag_feature_select=True,extra_var=[],verbose=True):
+    def fit(self,net_data_low_main,y,confounds,n_subtypes,n_subtypes_l1=3,flag_feature_select=True,extra_var=[],verbose=True):
         self.verbose = verbose
         ### regress confounds from the connectomes
         #net_data_low = net_data_low_main.copy()
         #cf_rm = prediction.ConfoundsRm(confounds,net_data_low.reshape((net_data_low.shape[0],net_data_low.shape[1]*net_data_low.shape[2])))
         #net_data_low_tmp = cf_rm.transform(confounds,net_data_low.reshape((net_data_low.shape[0],net_data_low.shape[1]*net_data_low.shape[2])))
         #net_data_low = net_data_low_tmp.reshape((net_data_low_tmp.shape[0],net_data_low.shape[1],net_data_low.shape[2]))
+        self.scale_ref = net_data_low_main.mean(0).mean(1)
+        #net_data_low = self.norm_subjects(net_data_low_main)
         self.cf_rm = prediction.ConfoundsRm(confounds,net_data_low_main)
         net_data_low = self.cf_rm.transform(confounds,net_data_low_main)
+        #net_data_low += self.cf_rm.intercept()
+
 
         ### compute the subtypes
         if self.verbose: start = time.time()
         st_ = subtypes.clusteringST()
-        st_.fit(net_data_low,n_subtypes)
+        st_.fit_robust(net_data_low,n_subtypes_l1)
         xw = st_.transform(net_data_low)
+        xw = np.nan_to_num(xw)
+
+        self.st_l2 = subtypes.clusteringST()
+        self.st_l2.fit_robust(net_data_low,n_subtypes)
+        xwl2 = self.st_l2.transform(net_data_low)
+        xwl2 = np.nan_to_num(xwl2)
         #xw = np.hstack((age_var,xw))
         if self.verbose: print("Compute subtypes, Time elapsed: {}s)".format(int(time.time() - start)))
 
@@ -84,7 +94,7 @@ class SBP:
         ### prediction model
         if self.verbose: start = time.time()
         tlp = TwoLevelsPrediction()
-        tlp.fit(all_var,y,model_type='svm',verbose=self.verbose)
+        tlp.fit(all_var,xwl2,y,model_type='svm',verbose=self.verbose)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
         ### save parameters
@@ -96,12 +106,19 @@ class SBP:
     def predict(self,net_data_low_main,confounds,extra_var=[]):
         ### regress confounds from the connectomes
         #net_data_low = net_data_low_main.copy()
-        #net_data_low_tmp = self.cf_rm.transform(confounds,net_data_low.reshape((net_data_low.shape[0],net_data_low.shape[1]*net_data_low.shape[2])))
+
         #net_data_low = net_data_low_tmp.reshape((net_data_low_tmp.shape[0],net_data_low.shape[1],net_data_low.shape[2]))
+        #scale_new = net_data_low_main.mean(0).mean(1)
+        #scaling_factor = self.scale_ref / scale_new
+        #tmp_data = np.swapaxes(np.swapaxes(net_data_low_main,1,2)*scaling_factor,1,2)
+        #net_data_low = self.norm_subjects(net_data_low_main)
         net_data_low = self.cf_rm.transform(confounds,net_data_low_main)
+        #net_data_low += self.cf_rm.intercept()
         ### subtypes w estimation
         self.xw = self.st.transform(net_data_low)
-
+        self.xw = np.nan_to_num(self.xw)
+        self.xwl2 = self.st_l2.transform(net_data_low)
+        self.xwl2 = np.nan_to_num(self.xwl2)
         ### Include extra covariates
         if len(extra_var)!=0:
             all_var = np.hstack((self.xw[:,self.w_select],extra_var))
@@ -109,7 +126,7 @@ class SBP:
             all_var = self.xw[:,self.w_select]
 
         ### prediction model
-        return self.tlp.predict(all_var)
+        return self.tlp.predict(all_var,self.xwl2)
 
     def score(self,net_data_low_main,y,confounds,extra_var=[]):
         res = self.predict(net_data_low_main,confounds,extra_var)
@@ -118,6 +135,19 @@ class SBP:
         right_cases = accuracy_score(y[risk_mask],res[risk_mask,0])
         left_cases = accuracy_score(y[~risk_mask],res[~risk_mask,0])
         return accuracy_score(y,l1_y_pred),left_cases,right_cases
+
+    def norm_subjects(self,data,ref=[]):
+        if len(data.shape) == 2:
+
+            ref_avg_rmaps = ref.mean()
+            avrg_rmaps = data.mean(1)
+            scaling_factor = ref_avg_rmaps / avrg_rmaps
+            return data*scaling_factor.reshape(-1,1)
+        else:
+            ref_avg_rmaps = self.scale_ref
+            avrg_rmaps = data.mean(2)
+            scaling_factor = ref_avg_rmaps / avrg_rmaps
+            return np.swapaxes(np.swapaxes(data,0,2)*np.swapaxes(scaling_factor,0,1),0,2)
 
     def estimate_acc(self,net_data_low_main,y,confounds,n_subtypes,verbose=False):
 
@@ -155,7 +185,7 @@ class TwoLevelsPrediction:
     2 Level prediction
     '''
 
-    def fit(self,xw,y,gs=4,model_type='logit',verbose=True):
+    def fit(self,xw,xwl2,y,gs=4,model_type='logit',verbose=True):
         self.verbose = verbose
         if model_type=='logit':
             clf = LogisticRegression(C=1,class_weight='balanced',penalty='l2',max_iter=300)
@@ -183,10 +213,11 @@ class TwoLevelsPrediction:
         #param_grid = dict(C=(np.array([5,3,1])))
         if model_type=='logit':
             param_grid = dict(C=(10**np.arange(1.,-2.,-0.5)))
+            #param_grid = dict(C=(np.logspace(-.2, 1., 15)))
             #param_grid = dict(C=(np.arange(3,1,-0.5)))
         else:
             param_grid = dict(C=(np.arange(3.5,0.,-0.5)))
-            param_grid = dict(C=(1.,.100001))
+            param_grid = dict(C=(1.,1.00001))
             #param_grid = dict(C=(np.logspace(-1.5, 0, 10)))
             #param_grid = dict(C=(np.arange(2.,0.5,-0.05)))
             #param_grid = dict(C=(np.array([0.01, 0.1, 1, 10, 100, 1000])))
@@ -202,14 +233,20 @@ class TwoLevelsPrediction:
 
         print 'Stage 2'
         #Stage 2
+        min_c = l1_min_c(xwl2,hm_y,loss='log')
+        print 'minimum c: ',min_c
         #clf2 = LogisticRegression(C=10**0.1,class_weight=None,penalty='l2',solver='sag')
         #clf2 = LogisticRegression(C=1,class_weight=None,penalty='l2',solver='sag',max_iter=300)
+        #clf2 = LinearSVC(class_weight='balanced',penalty='l1',dual=False)
+        clf2 = LogisticRegression(C=1.,class_weight='balanced',penalty='l1',solver='liblinear',max_iter=300)
         #clf2 = LogisticRegression(C=1.,class_weight='balanced',penalty='l2',solver='sag',max_iter=300)
-        clf2 = SVC(C=1.,cache_size=500,kernel='linear',class_weight='balanced')
+        #clf2 = SVC(C=1.,cache_size=500,kernel='linear',class_weight='balanced')
         #param_grid = dict(C=(10**np.arange(1.,-2.,-0.5)))
         #param_grid = dict(C=(np.arange(3,1,-0.5)))
         #param_grid = dict(C=(np.logspace(-0.5, 2., 30)))
-        param_grid = dict(C=(np.logspace(1., 1.6, 30)))
+        #param_grid = dict(C=(np.logspace(1., 1.6, 30)))
+        param_grid = dict(C=(np.logspace(-.2, 1., 15)))
+        #param_grid = dict(C=(np.logspace(np.log10(min_c), 0., 15)))
         #param_grid = dict(C=(1,1.0001)) 
         # 2 levels balancing
         '''
@@ -230,7 +267,7 @@ class TwoLevelsPrediction:
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=sample_w), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=proba), n_jobs=-1,scoring='accuracy')
         gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1,scoring='accuracy')
-        gridclf.fit(xw,hm_y)
+        gridclf.fit(xwl2,hm_y)
         clf2 = gridclf.best_estimator_
         #clf2.fit(xw[train_index,:][:,idx_sz],hm_y)
         if self.verbose:
@@ -239,10 +276,10 @@ class TwoLevelsPrediction:
 
         self.clf2 = clf2
 
-    def predict(self,x):
+    def predict(self,x,xwl2):
         xw = x.copy()#[:,self.w_select]
         y_pred1 = self.clf1.predict(xw)
-        y_pred2 = self.clf2.decision_function(xw)
+        y_pred2 = self.clf2.decision_function(xwl2)
         return np.array([y_pred1,y_pred2]).T
 
     def estimate_hitmiss(self,x,y):
@@ -268,13 +305,19 @@ class TwoLevelsPrediction:
         hm_count = np.zeros_like(y).astype(float)
         hm = np.zeros_like(y).astype(float)
         skf = StratifiedShuffleSplit(y, n_iter=n_iter, test_size=.25,random_state=np.random.seed(42))
+        coefs_ = []
+        intercepts_ = []
         for train,test in skf:
             self.clf1.fit(x[train,:],y[train])
             hm_count[test] += 1.
             hm[test] += (self.clf1.predict(x[test,:])==y[test]).astype(float)
+            coefs_.append(self.clf1.coef_)
+            intercepts_.append(self.clf1.intercept_)
         proba = hm/hm_count
         print hm_count
         print proba
+        #self.clf1.coef_ = np.array(coefs_).mean(0)
+        #self.clf1.intercept_ = np.array(intercepts_).mean(0)
         self.clf1.fit(x,y)
         return (proba>gamma).astype(int),proba
 

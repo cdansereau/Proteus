@@ -60,22 +60,43 @@ class ConfoundsRm:
         self.fit(confounds, data, intercept)
 
     def fit(self, confounds, data, intercept=True):
+        self.data_dim = data.shape
         if confounds == []:
             print('No confounds')
             self.nconfounds = 0
         else:
+            if len(self.data_dim)==3:
+                self.a1,self.a2,self.a3 = data.shape
+                data_ = data.reshape((self.a1,self.a2*self.a3))
+            else:
+                data_ = data
             self.nconfounds = confounds.shape[1]
             self.reg = linear_model.LinearRegression(fit_intercept=intercept)
-            self.reg.fit(confounds,data)
+            print data_.shape,confounds.shape
+            self.reg.fit(confounds,data_)
 
     def transform(self, confounds, data):
         # compute the residual error
         if self.nconfounds == 0:
             return data
         else:
-            return data - self.reg.predict(confounds)
+            if len(data.shape)==3:
+                data_ = data.reshape((data.shape[0],data.shape[1]*data.shape[2]))
+                res = data_ - self.reg.predict(confounds)
+                return res.reshape((data.shape[0],data.shape[1],data.shape[2]))
+            else:
+                data_ = data
+                return data_ - self.reg.predict(confounds)
+
     def nConfounds(self):
         return self.nconfounds
+
+    def intercept(self):
+        if len(self.data_dim) == 3:
+            return self.reg.intercept_.reshape((1,self.data_dim[1],self.data_dim[2]))
+        else:
+            return self.reg.intercept_
+
 
 def compute_acc_noconf(x,y,verbose=False,balanced=True,loo=False,nfolds=10,gs_kfolds=5,optimize=True,C=.01):
     return compute_acc_conf(x,y,[],verbose,balanced,loo,nfolds,gs_kfolds,optimize,C)
