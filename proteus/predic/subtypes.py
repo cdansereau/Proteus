@@ -18,7 +18,7 @@ class clusteringST:
     Identification of sub-types for prediction
     '''
 
-    def __init__(verbose=True):
+    def __init__(self,verbose=True):
         self.verbose = verbose
 
     def fit(self,net_data_low,nSubtypes=3,reshape_w=True):
@@ -85,7 +85,7 @@ class clusteringST:
         bs_cluster = []
         n = net_data_low.shape[0]
         stab_ = np.zeros((n,n)).astype(float)
-        rs = ShuffleSplit(net_data_low.shape[0], n_iter=n_iter,test_size=.2, random_state=1)
+        rs = ShuffleSplit(net_data_low.shape[0], n_iter=n_iter,test_size=.05, random_state=1)
         for train,test in rs:
             # indentity matrix of the corelation between subjects
             ind_st = cls.hclustering(net_data_low[train,:],nSubtypes)
