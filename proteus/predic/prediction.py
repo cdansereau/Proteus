@@ -44,12 +44,26 @@ def estimate_unbalanced_std(y1,y2):
     #return 0.5*(estimate_std(p0,len(idx_0)) + estimate_std(p1,len(idx_1)))
     return 0.5*np.sqrt(estimate_std(p0,len(idx_0)) + estimate_std(p1,len(idx_1)))
 
-def get_corrvox(data_ts,head_mask, regions):
+def get_corrvox_gs(data_ts,head_mask, regions):
     # remove GS
     cf_rm = ConfoundsRm(data_ts[head_mask].mean(0).reshape(-1,1),data_ts[head_mask].T,intercept=False)
     data_ts[head_mask] = cf_rm.transform(data_ts[head_mask].mean(0).reshape(-1,1),data_ts[head_mask].T).T
     # extract time series
     ts_regions = ts.get_ts(data_ts,regions)
+    ts_allvox = data_ts[head_mask]
+    # compute correlations
+    return ts.corr(ts_regions,ts_allvox)
+
+def get_corrvox(data_ts,head_mask, regions):
+    # extract time series
+    ts_regions = ts.get_ts(data_ts,regions)
+    ts_allvox = data_ts[head_mask]
+    # compute correlations
+    return ts.corr(ts_regions,ts_allvox)
+
+def get_corrvox_std(data_ts,head_mask, regions):
+    # extract time series std
+    ts_regions = ts.get_ts(data_ts,regions,metric='std')
     ts_allvox = data_ts[head_mask]
     # compute correlations
     return ts.corr(ts_regions,ts_allvox)
@@ -72,7 +86,7 @@ class ConfoundsRm:
                 data_ = data
             self.nconfounds = confounds.shape[1]
             self.reg = linear_model.LinearRegression(fit_intercept=intercept)
-            print data_.shape,confounds.shape
+            #print data_.shape,confounds.shape
             self.reg.fit(confounds,data_)
 
     def transform(self, confounds, data):
@@ -87,6 +101,22 @@ class ConfoundsRm:
             else:
                 data_ = data
                 return data_ - self.reg.predict(confounds)
+
+    def transform_batch(self, confounds, data, batch_size=50):
+        # compute the residual error
+        if self.nconfounds == 0:
+            return data
+        else:
+            # batch convert the data
+            nbatch = data.shape[0]/(batch_size)# number of batch                                                     i
+            batch_res = []
+            for idx_batch in range(nbatch):
+                if idx_batch == nbatch-1:
+                    batch_res.append(self.transform(confounds[idx_batch*batch_size:-1,...],data[idx_batch*batch_size:-1,...]))
+                else:
+                    batch_res.append(self.transform(confounds[idx_batch*batch_size:(1+idx_batch)*batch_size,...],data[idx_batch*batch_size:(1+idx_batch)*batch_size,...]))
+            return np.vstack(batch_res)
+
 
     def nConfounds(self):
         return self.nconfounds
