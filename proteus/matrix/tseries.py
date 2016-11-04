@@ -95,7 +95,7 @@ def corr(ref_ts,voxel_ts):
     return corr_mat
 
 @jit
-def get_ts(vol,part):
+def get_ts(vol,part,metric='mean'):
     # create a NxT (partitions x time points)
     part = np.array(part,dtype=int)
     idx = np.unique(part)
@@ -106,7 +106,10 @@ def get_ts(vol,part):
         # compute the average of the time series defined in a partition
         #print vol.shape,mask_parcel.shape
         #if len(vol[mask_parcel].shape)>1:
-        ts_new = np.array(vol[mask_parcel].mean(axis=0))
+        if metric == 'std':
+            ts_new = np.array(vol[mask_parcel].std(axis=0))
+        else:
+            ts_new = np.array(vol[mask_parcel].mean(axis=0))
         #else:
         #    ts_new = np.mean(vol[mask_parcel])
         #print ts_new.shape
