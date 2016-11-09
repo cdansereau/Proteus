@@ -94,6 +94,15 @@ def get_ind_high2low(template_low,template_high):
 
     return np.array(ind_low_scale)
 
+def get_mask_high2low(template_mask,template_high):
+    masked_template = template_mask*template_high
+    n_cls = np.max(template_high)
+    ind_low_scale = []
+    for i in range(n_cls):
+        ind_low_scale.append(np.nan_to_num(np.mean(masked_template[masked_template==i+1])))
+
+    return np.array(ind_low_scale)
+
 def getWindowCluster(timeseries,nclusters=12,window_size=20):
     binary_mat = np.array([])
     for i in range(0,timeseries.shape[1]-window_size+1,1):
