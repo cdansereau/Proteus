@@ -11,11 +11,11 @@ from proteus.predic import clustering as clust
 import nibabel as nib
 import h5py
 
-def write(dict_data,file_name):
+def write(dict_data,file_name,compress=4):
     with h5py.File(file_name, 'w') as hf:
         for ii in range(len(dict_data.keys())):
             item_id = dict_data.keys()[ii]
-            hf.create_dataset(item_id, data=dict_data[item_id],compression="gzip", compression_opts=9)
+            hf.create_dataset(item_id, data=dict_data[item_id],compression="gzip", compression_opts=compress)
 
 def load(file_name):
     with h5py.File(file_name,'r') as hf:
@@ -26,6 +26,7 @@ def load(file_name):
             dict_data[item_id] = np.array(hf.get(item_id))
 
     return dict_data
+
 
 def organize_data(data,demograph):
     data_tmp = data.loc[demograph.index.values]
