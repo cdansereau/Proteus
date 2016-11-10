@@ -37,7 +37,10 @@ class clusteringST:
         self.normalized_net_template = []
         for i in range(net_data_low.shape[1]):
             # average template
-            self.normalized_net_template.append(np.median(net_data_low[:,i,:],axis=0))
+            if nSubtypes<1:
+                self.normalized_net_template.append(np.zeros_like(net_data_low[:,i,0]))
+            else:
+                self.normalized_net_template.append(np.median(net_data_low[:,i,:],axis=0))
             #self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:]))
 
             # indentity matrix of the corelation between subjects
@@ -326,7 +329,7 @@ class clusteringST:
                 W = np.zeros((net_data_low.shape[0],st_templates.shape[0],tmp_rmap.shape[1]))
             W[:,j,:] = tmp_rmap
 
-        return W
+        return np.nan_to_num(W)
 
 
     def compute_w_global(self,X,ref):
