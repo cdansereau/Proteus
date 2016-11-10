@@ -81,13 +81,13 @@ def dynamic_rmaps_std(data_,partition,voxel_mask,window=20):
 
 def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True):
     print('Compute seed maps ...')
-    n_seed = len(np.unique(seed_partition))
+    n_seed = len(np.unique(seed_partition.get_data())[1:])
     pbar = progress.Progbar(len(list_files))
     seed_list = []
     params = []
     for ii in range(len(list_files)):
         subj_id = str(subject_ids[ii])
-        new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_gs_dynamic.npz'
+        new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_gs_dynamic.h5'
         if multiprocess:
             params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path))
         else:
@@ -104,7 +104,8 @@ def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_pa
     vol_file = nib.load(file_path).get_data()
     dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask)
     del vol_file
-    np.savez_compressed(output_path,dynamic_data=dynamic_data,avg_data=avg_data)
+    #np.savez_compressed(output_path,dynamic_data=dynamic_data,avg_data=avg_data)
+    util.write({'dynamic_data':dynamic_data,'avg_data':avg_data},output_path)
     del dynamic_data,avg_data
     return new_path
 
