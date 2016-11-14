@@ -7,18 +7,24 @@ import multiprocessing
 from multiprocessing import Pool
 from ..visu import progress
 from ..predic import prediction
+import time
+import h5py
+import util
 
 ##### grab rmaps #####
-def grab_dynamic(connectivity_path,seed_index,dynamic):
-    #print connectivity_path
-    data = np.load(connectivity_path)
-    if dynamic:
-        return [data['dynamic_data'][:,seed_index,:],data['avg_data'][seed_index,:]]
-    else:
-        return data['avg_data'][seed_index,:]
+def grab_dynamic(file_name,seed_index,dynamic,verbose=False):
+    if verbose: start = time.time()
+    with h5py.File(file_name,'r') as hf:
+        if dynamic:
+            data = [hf['dynamic_data'][:,seed_index,:],hf['avg_data'][seed_index,:]]
+            if verbose: print("Load file, Time elapsed: {}s)".format(float(time.time() - start)))
+        else:
+            data = hf['avg_data'][seed_index,:]
+            if verbose: print("Load file, Time elapsed: {}s)".format(float(time.time() - start)))
+    return data
 
 def search_path(path,subject_id):
-    list_of_files = glob.glob(str(path)+'*'+str(subject_id)+'*dynamic.npz')
+    list_of_files = glob.glob(str(path)+'*'+str(subject_id)+'*dynamic.h5')
     return list_of_files
 
 def grab_rmap(subject_list,path,seed_index,dynamic=False,flag_std=False):
@@ -79,7 +85,7 @@ def dynamic_rmaps_std(data_,partition,voxel_mask,window=20):
     avg_ref = prediction.get_corrvox_std(data,voxel_mask,partition)
     return dynamic_data,avg_ref
 
-def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True):
+def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True,window=20):
     print('Compute seed maps ...')
     n_seed = len(np.unique(seed_partition.get_data())[1:])
     pbar = progress.Progbar(len(list_files))
@@ -89,23 +95,29 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
         subj_id = str(subject_ids[ii])
         new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_gs_dynamic.h5'
         if multiprocess:
-            params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path))
+            params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path,window))
         else:
-            seed_map_multiprocess((subj_id,list_files[ii],seed_partition,brain_mask,new_path))
+            seed_map_multiprocess((subj_id,list_files[ii],seed_partition,brain_mask,new_path,window))
+            pbar.update(ii+1)
         seed_list.append(new_path)
-        pbar.update(ii+1)
     if multiprocess:
         p = Pool(processes=multiprocessing.cpu_count()-1)
         results = p.map_async(seed_map_multiprocess, params)
+        p.close() # No more work
+        while (True):
+            if (rs.ready()): break
+            remaining = rs._number_left
+            pbar.update(len(list_files)-ramining)
+            #print "Waiting for", remaining, "tasks to complete..."
+            time.sleep(0.5)
 
     return seed_list
 
-def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_path)):
+def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_path,window)):
     vol_file = nib.load(file_path).get_data()
-    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask)
+    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask,window=window)
     del vol_file
     #np.savez_compressed(output_path,dynamic_data=dynamic_data,avg_data=avg_data)
     util.write({'dynamic_data':dynamic_data,'avg_data':avg_data},output_path)
     del dynamic_data,avg_data
-    return new_path
 
