@@ -107,7 +107,7 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
         while (True):
             if (rs.ready()): break
             remaining = rs._number_left
-            pbar.update(len(list_files)-ramining)
+            pbar.update(len(list_files)-remaining)
             #print "Waiting for", remaining, "tasks to complete..."
             time.sleep(0.5)
 
