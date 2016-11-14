@@ -102,7 +102,7 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
         seed_list.append(new_path)
     if multiprocess:
         p = Pool(processes=multiprocessing.cpu_count()-1)
-        results = p.map_async(seed_map_multiprocess, params)
+        rs = p.map_async(seed_map_multiprocess, params)
         p.close() # No more work
         while (True):
             if (rs.ready()): break
