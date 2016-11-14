@@ -38,17 +38,18 @@ class clusteringST:
         for i in range(net_data_low.shape[1]):
             # average template
             if nSubtypes<1:
-                self.normalized_net_template.append(np.zeros_like(net_data_low[:,i,0]))
+                self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:]).astype(float))
             else:
-                self.normalized_net_template.append(np.median(net_data_low[:,i,:],axis=0))
-            #self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:]))
+                self.normalized_net_template.append(np.mean(net_data_low[:,i,:],axis=0))
+                #self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:])).astype(float))
+
 
             # indentity matrix of the corelation between subjects
             #tmp_subj_identity = np.corrcoef(net_data_low[:,i,:])
             #ind_st = cls.hclustering(tmp_subj_identity,nSubtypes)
             # subjects X network_nodes
-            #ind_st = cls.hclustering(net_data_low[:,i,:]-np.mean(net_data_low[:,i,:],axis=0),nSubtypes)
-            ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
+            ind_st = cls.hclustering(net_data_low[:,i,:]-self.normalized_net_template[-1],nSubtypes)
+            #ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
 
             for j in range(nSubtypes):
                 if j == 0:
@@ -110,12 +111,13 @@ class clusteringST:
 
         self.normalized_net_template = []
         for i in range(net_data_low.shape[1]):
+            # average template
+            self.normalized_net_template.append(np.mean(net_data_low[:,i,:],axis=0))
+            #self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:]))
+
             # indentity matrix of the corelation between subjects
             #ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
-            ind_st,stab_ = self.robust_st(net_data_low[:,i,:],nSubtypes)
-            # average template
-            self.normalized_net_template.append(np.median(net_data_low[:,i,:],axis=0))
-            #self.normalized_net_template.append(np.zeros_like(net_data_low[0,i,:]))
+            ind_st,stab_ = self.robust_st(net_data_low[:,i,:]-self.normalized_net_template[-1],nSubtypes)
 
             for j in range(nSubtypes):
                 mask_stable = (stab_[ind_st==j+1,:].mean(0)>stab_thereshold)[ind_st==j+1]
@@ -148,11 +150,12 @@ class clusteringST:
         # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
 
         self.normalized_net_template = []
-        # indentity matrix of the corelation between subjects
-        ind_st,stab_ = self.robust_st(net_data_low,nSubtypes)
         # average template
-        #self.normalized_net_template.append(np.median(net_data_low[:,:],axis=0))
-        self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
+        self.normalized_net_template.append(np.mean(net_data_low[:,:],axis=0))
+        #self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
+        # indentity matrix of the corelation between subjects
+        ind_st,stab_ = self.robust_st(net_data_low-self.normalized_net_template[-1],nSubtypes)
+
         for j in range(nSubtypes):
             mask_stable = (stab_[ind_st==j+1,:].mean(0)>stab_thereshold)[ind_st==j+1]
             if self.verbose: print 'Robust: new N ',mask_stable.sum(),' old N ',mask_stable.shape
@@ -180,16 +183,18 @@ class clusteringST:
         # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
 
         self.normalized_net_template = []
-        # indentity matrix of the corelation between subjects
-        ind_st = cls.hclustering(net_data_low[:,:],nSubtypes)
         # average template
-        #self.normalized_net_template.append(np.median(net_data_low[:,:],axis=0))
-        self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
+        self.normalized_net_template.append(np.mean(net_data_low,axis=0))
+        #self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
+        # indentity matrix of the corelation between subjects
+        ind_st = cls.hclustering(net_data_low - self.normalized_net_template[-1],nSubtypes)
+
         for j in range(nSubtypes):
+            data_tmp = np.median(net_data_low[ind_st==j+1,:]- self.normalized_net_template[-1],axis=0)[np.newaxis,...]
             if j == 0:
-                st_templates_tmp = np.median(net_data_low[:,:][ind_st==j+1,:],axis=0)[np.newaxis,...]
+                st_templates_tmp = data_tmp
             else:
-                st_templates_tmp = np.vstack((st_templates_tmp,np.median(net_data_low[:,:][ind_st==j+1,:],axis=0)[np.newaxis,...]))
+                st_templates_tmp = np.vstack((st_templates_tmp,data_tmp))
 
         # st_templates --> Dimensions: nNetwork_low,nSubtypes, nNetwork
         self.st_templates = st_templates_tmp[np.newaxis,...]
@@ -320,7 +325,7 @@ class clusteringST:
         for j in range(st_templates.shape[0]):
             average_template = self.normalized_net_template[j]
             if len(net_data_low.shape)==2:
-                rmaps = net_data_low[:,:] - average_template
+                rmaps = net_data_low - average_template
             else:
                 rmaps = net_data_low[:,j,:] - average_template
             st_rmap = st_templates[j,:,:] - average_template
