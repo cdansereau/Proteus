@@ -24,6 +24,7 @@ import time
 from proteus.io import sbp_util
 
 
+
 def compute_loo_parall((net_data_low_main,y,confounds,n_subtypes,train_index,test_index)):
     my_sbp = sbp()
     my_sbp.fit(net_data_low_main[train_index,...],y[train_index],confounds[train_index,...],n_subtypes,verbose=False)
@@ -61,9 +62,13 @@ class SBP:
         return subtypes.reshapeW(xw)
 
 
-    def fit(self,x_dyn,confounds_dyn,x,confounds,y,extra_var=[],gamma=0.8,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+    def fit(self,x_dyn,confounds_dyn,x,confounds,y,extra_var=[],gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+        self.dynamic = True
         self.gamma = gamma
         self.mask_part = mask_part
+        self.stage1_model_type = stage1_model_type
+        self.nSubtypes = nSubtypes
+
         if self.verbose: start = time.time()
         ### train subtypes
         self.st_crm = []
@@ -95,9 +100,12 @@ class SBP:
         self.tlp = tlp
 
 
-    def fit_dynamic(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],gamma=0.8,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+    def fit_files(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.8,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+        self.dynamic = dynamic
         self.gamma = gamma
         self.mask_part = mask_part
+        self.stage1_model_type = stage1_model_type
+        self.nSubtypes = nSubtypes
         if self.verbose: start = time.time()
         ### train subtypes
         self.st_crm = []
@@ -105,12 +113,17 @@ class SBP:
         xw = []
         for ii in range(n_seeds):
             print('Train seed '+str(ii+1))
-            [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=True)
-            confounds_dyn = []
-            for jj in range(len(x_dyn)):
-                confounds_dyn.append((confounds[jj],)*x_dyn[jj].shape[0])
-            confounds_dyn = np.vstack(confounds_dyn)
-            x_dyn = np.vstack(x_dyn)
+            if dynamic:
+                [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=dynamic)
+                confounds_dyn = []
+                for jj in range(len(x_dyn)):
+                    confounds_dyn.append((confounds[jj],)*x_dyn[jj].shape[0])
+                confounds_dyn = np.vstack(confounds_dyn)
+                x_dyn = np.vstack(x_dyn)
+            else:
+                x_ref = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=dynamic)
+                x_dyn = x_ref
+                confounds_dyn = confounds
 
             ## regress confounds
             crm = prediction.ConfoundsRm(confounds_dyn,x_dyn)
@@ -145,7 +158,7 @@ class SBP:
 
     def predict_files(self,files_path,subjects_id_list,confounds,extra_var=[]):
         xw = self.get_w_files(files_path,subjects_id_list,confounds)
-        self.predict(xw,[],extra_var,skip_confounds=True)
+        return self.predict(xw,[],extra_var,skip_confounds=True)
 
     def predict(self,x,confounds,extra_var=[],skip_confounds=False):
 
@@ -221,13 +234,15 @@ class TwoLevelsPrediction:
     def __init__(self,verbose=True):
         self.verbose=verbose
 
-    def auto_gamma(self,proba,gamma,thresh=0.2):
+    def auto_gamma(self,proba,gamma,thresh=0.15):
         while (np.mean(proba>gamma)<=thresh):
             gamma -= 0.01
 
-        return (proba>gamma).astype(int)
+        return (proba>gamma).astype(int),gamma
 
-    def fit(self,xw,xwl2,y,gs=4,stage1_model_type='svm',retrain_l1=False,gamma=0.8):
+    def fit(self,xw,xwl2,y,gs=4,stage1_model_type='svm',retrain_l1=False,gamma=0.999):
+        self.stage1_model_type = stage1_model_type
+        self.gamma = gamma
         print 'Stage 1'
         if stage1_model_type == 'logit':
             clf = LogisticRegression(C=1,class_weight='balanced',penalty='l2',max_iter=300)
@@ -261,7 +276,8 @@ class TwoLevelsPrediction:
             #print self.clf1.coef_
         #hm_y,y_pred_train = self.estimate_hitmiss(xw,y)
         hm_y,proba = self.suffle_hm(xw,y,gamma=gamma,n_iter=100)
-        hm_y = self.auto_gamma(proba,gamma)
+        hm_y,auto_gamma = self.auto_gamma(proba,gamma)
+        self.auto_gamma = auto_gamma
         if self.verbose: proba
         print 'Average hm score', np.mean(hm_y)
         #self.clf3 = SVC(C=1.,cache_size=500,kernel='linear',class_weight='balanced',probability=False)
