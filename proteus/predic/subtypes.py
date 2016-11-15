@@ -12,6 +12,38 @@ from sklearn import preprocessing
 from sklearn.cross_validation import ShuffleSplit
 from scipy.cluster.hierarchy import linkage
 from scipy.cluster.hierarchy import fcluster
+from proteus.predic import prediction
+
+def st_multi_fit(confounds,x,nSubtypes=3):
+    st_crm = []
+    for ii in range(len(x)):
+        crm = prediction.ConfoundsRm(confounds,x[ii])
+        st = clusteringST()
+        st.fit_network(crm.transform(confounds,x[ii]),nSubtypes=nSubtypes)
+        st_crm.append([crm,st])
+    return st_crm
+
+def st_multi_transform(st_crm,confounds,x,nsplit=1):
+    W = []
+    for ii in range(len(st_crm)):
+        #W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii])))
+        W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii]),mask_part=chunks(x[ii][0,:],nsplit)))
+    w_ = np.hstack(W)
+    w_ = reshapeW(w_)
+    return w_
+
+def chunks(l, n):
+    w = len(l)/(n)
+    k=1
+    l = np.zeros_like(l)
+    for i in xrange(0, len(l), w):
+        if k == (n):
+            l[i:]=k
+            break
+        else:
+            l[i:i+w]=k
+        k+=1
+    return l
 
 class clusteringST:
     '''
@@ -357,7 +389,8 @@ class clusteringST:
         if mask_part != []:
             # sub_w based on partition
             w_ = []
-            for idx in np.unique(mask_part)[1:]:
+            list_id = np.unique(mask_part)
+            for idx in np.delete(list_id,np.where(list_id==0)):
                 mask_ = mask_part == idx
                 w_.append(self.compute_w_global(X[...,mask_],ref[...,mask_]))
             w_ = np.hstack(w_)
