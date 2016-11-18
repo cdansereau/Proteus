@@ -20,7 +20,7 @@ def write(dict_data,file_name,compress=4):
 def load(file_name):
     with h5py.File(file_name,'r') as hf:
         dict_data = {}
-        print("List of arrays in this file: \n", hf.keys())
+        print("List of arrays in this file: ", hf.keys())
         for ii in range(len(hf.keys())):
             item_id = hf.keys()[ii]
             dict_data[item_id] = np.array(hf.get(item_id))
