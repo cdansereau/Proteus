@@ -99,8 +99,61 @@ class SBP:
         ### save parameters
         self.tlp = tlp
 
+    def fit_files_st(self,files_path_st,subjects_id_list_st,confounds_st,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+        self.dynamic = dynamic
+        self.gamma = gamma
+        self.mask_part = mask_part
+        self.stage1_model_type = stage1_model_type
+        self.nSubtypes = nSubtypes
+        if self.verbose: start = time.time()
+        ### train subtypes
+        self.st_crm = []
+        #for ii in [5,13]:#range(x.shape[1]):
+        xw = []
+        for ii in range(n_seeds):
+            print('Train seed '+str(ii+1))
+            if dynamic:
+                [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=dynamic)
+                confounds_dyn = []
+                for jj in range(len(x_dyn)):
+                    confounds_dyn.append((confounds_st[jj],)*x_dyn[jj].shape[0])
+                confounds_dyn = np.vstack(confounds_dyn)
+                x_dyn = np.vstack(x_dyn)
+            else:
+                x_ref = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=dynamic)
+                x_dyn = x_ref
+                confounds_dyn = confounds_st
 
-    def fit_files(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.8,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
+            del x_ref
+            ## regress confounds
+            crm = prediction.ConfoundsRm(confounds_dyn,x_dyn)
+            ## extract subtypes
+            st=subtypes.clusteringST()
+            st.fit_network(crm.transform(confounds_dyn,x_dyn),nSubtypes=nSubtypes)
+            self.st_crm.append([crm,st])
+            del x_dyn
+
+        # compute the W
+        xw = self.get_w_files(files_path,subjects_id_list,confounds)
+        if self.verbose: print("Subtype extraction, Time elapsed: {}s)".format(int(time.time() - start)))
+
+        ### Include extra covariates
+        if len(extra_var)!=0:
+            all_var = np.hstack((xw,extra_var))
+        else:
+            all_var = xw
+
+        ### prediction model
+        if self.verbose: start = time.time()
+        tlp = TwoLevelsPrediction(self.verbose)
+        tlp.fit(all_var,all_var,y,stage1_model_type=stage1_model_type,gamma=self.gamma)
+        if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
+
+        ### save parameters
+        self.tlp = tlp
+
+
+    def fit_files(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
         self.dynamic = dynamic
         self.gamma = gamma
         self.mask_part = mask_part
@@ -332,15 +385,15 @@ class TwoLevelsPrediction:
         new_classes[(y==1) ]=1
 
         tmp_samp_w = len(new_classes) / (len(np.unique(new_classes))*1. * np.bincount(new_classes))
-        tmp_samp_w = (1.*(tmp_samp_w/tmp_samp_w.sum()))
+        #tmp_samp_w = (1.*(tmp_samp_w/tmp_samp_w.sum()))
         sample_w = new_classes.copy().astype(float)
         sample_w[new_classes==0] = tmp_samp_w[0]
         sample_w[new_classes==1] = tmp_samp_w[1]
 
-        #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=sample_w), n_jobs=-1,scoring='precision_weighted')
+        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=sample_w), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=proba), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1,scoring='precision_weighted')
-        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='precision_weighted')#f1_weighted
+        #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='accuracy')#f1_weighted
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,fit_params=dict(sample_weight=sample_w),scoring='precision_weighted')
         gridclf.fit(xwl2,hm_y)
         clf2 = gridclf.best_estimator_
@@ -350,7 +403,29 @@ class TwoLevelsPrediction:
             print clf2.coef_
 
         self.clf2 = clf2
+
+        self.fit_2branch(xwl2,hm_y,y)
         #self.robust_coef(xwl2,hm_y)
+
+    def fit_branchmodel(self,xwl2,hm_y):
+        clf = LogisticRegression(C=1.,class_weight='balanced',penalty='l1',solver='liblinear',max_iter=300)
+        param_grid = dict(C=(np.logspace(-.2, 1, 15)))
+
+        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='accuracy')
+        gridclf.fit(xwl2,hm_y)
+        return gridclf.best_estimator_
+
+    def fit_2branch(self,xwl2,hm_y,y_pred):
+        mask_ = y_pred==1
+        self.clf_0 = self.fit_branchmodel(xwl2[~mask_,:],hm_y[~mask_])
+        self.clf_1 = self.fit_branchmodel(xwl2[mask_,:],hm_y[mask_])
+
+    def predict_2branch(self,xwl2,y_pred):
+        y_pred_l2 = np.zeros_like(y_pred)
+        mask_ = y_pred==1
+        y_pred_l2[~mask_] = self.clf_0.decision_function(xwl2[~mask_,:])
+        y_pred_l2[mask_] = self.clf_1.decision_function(xwl2[mask_,:])
+        return y_pred_l2
 
     def robust_coef(self,xwl2,hm_y,n_iter=100):
         skf = StratifiedShuffleSplit(hm_y, n_iter=n_iter, test_size=.2,random_state=1)
@@ -366,6 +441,7 @@ class TwoLevelsPrediction:
     def predict(self,xw,xwl2):
         y_pred1 = self.clf1.predict(xw)
         y_pred2 = self.clf2.decision_function(xwl2)
+        y_pred2 = self.predict_2branch(xwl2,y_pred1)
         #y_pred2 = self.clf2.predict(xwl2)
         return np.array([y_pred1,y_pred2]).T
 
