@@ -87,7 +87,7 @@ def dynamic_rmaps_std(data_,partition,voxel_mask,window=20):
     avg_ref = prediction.get_corrvox_std(data,voxel_mask,partition)
     return dynamic_data,avg_ref
 
-def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True,window=20):
+def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True,window=20,gs=False):
     print('Compute seed maps ...')
     n_seed = len(np.unique(seed_partition.get_data())[1:])
     pbar = progress.Progbar(len(list_files))
@@ -97,9 +97,9 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
         subj_id = str(subject_ids[ii])
         new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_dynamic.h5'
         if multiprocess:
-            params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path,window))
+            params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path,window,gs))
         else:
-            seed_map_multiprocess((subj_id,list_files[ii],seed_partition,brain_mask,new_path,window))
+            seed_map_multiprocess((subj_id,list_files[ii],seed_partition,brain_mask,new_path,window,gs))
             pbar.update(ii+1)
         seed_list.append(new_path)
     if multiprocess:
@@ -115,9 +115,9 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
 
     return seed_list
 
-def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_path,window)):
+def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_path,window,gs)):
     vol_file = nib.load(file_path).get_data()
-    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask,window=window)
+    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask,window=window,gs)
     del vol_file
     #np.savez_compressed(output_path,dynamic_data=dynamic_data,avg_data=avg_data)
     util.write({'dynamic_data':dynamic_data,'avg_data':avg_data},output_path)
