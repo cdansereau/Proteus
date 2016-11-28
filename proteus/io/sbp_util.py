@@ -27,10 +27,10 @@ def search_path(path,subject_id):
     list_of_files = glob.glob(str(path)+'*'+str(subject_id)+'*dynamic.h5')
     return list_of_files
 
-def grab_rmap(subject_list,path,seed_index,dynamic=False,flag_std=False):
+def grab_rmap(subject_list,path,seed_index,dynamic=False,flag_std=False,verbose=True):
     dynamic_data = []
     avg_data     = []
-    pbar = progress.Progbar(len(subject_list))
+    if verbose: pbar = progress.Progbar(len(subject_list))
     k=0
     for sid in subject_list:
         k+=1
@@ -46,7 +46,7 @@ def grab_rmap(subject_list,path,seed_index,dynamic=False,flag_std=False):
         if flag_std:
             dynamic_std.append(tmp_data[2])
             std_ref.append(tmp_data[3])
-        pbar.update(k)
+        if verbose: pbar.update(k,force=True)
 
     if flag_std:
         return [dynamic_data,np.stack(avg_data),np.vstack(dynamic_std),np.stack(std_ref)]
@@ -58,10 +58,12 @@ def grab_rmap(subject_list,path,seed_index,dynamic=False,flag_std=False):
 
 ##### make rmaps #####
 
-def dynamic_rmaps(data_,partition,voxel_mask,window=20):
+def dynamic_rmaps(data_,partition,voxel_mask,window=20,gs=False):
+
     data = data_.copy()
-    cf_rm = prediction.ConfoundsRm(data_[voxel_mask].mean(0).reshape(-1,1),data_[voxel_mask].T,intercept=False)
-    data[voxel_mask] = cf_rm.transform(data_[voxel_mask].mean(0).reshape(-1,1),data_[voxel_mask].T).T
+    if gs:
+        cf_rm = prediction.ConfoundsRm(data_[voxel_mask].mean(0).reshape(-1,1),data_[voxel_mask].T,intercept=False)
+        data[voxel_mask] = cf_rm.transform(data_[voxel_mask].mean(0).reshape(-1,1),data_[voxel_mask].T).T
 
     n_iter = int(data.shape[-1]/(window/2.))-1
     dynamic_data = []
@@ -93,7 +95,7 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
     params = []
     for ii in range(len(list_files)):
         subj_id = str(subject_ids[ii])
-        new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_gs_dynamic.h5'
+        new_path = output_path+'fmri_'+subj_id+'_'+str(n_seed)+'_vox_dynamic.h5'
         if multiprocess:
             params.append( (subj_id,list_files[ii],seed_partition,brain_mask,new_path,window))
         else:
@@ -107,7 +109,7 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
         while (True):
             if (rs.ready()): break
             remaining = rs._number_left
-            pbar.update(1+len(list_files)-remaining)
+            pbar.update(1+len(list_files)-remaining,force=True)
             #print "Waiting for", remaining, "tasks to complete..."
             time.sleep(0.5)
 
