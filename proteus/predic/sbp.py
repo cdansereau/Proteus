@@ -12,9 +12,10 @@ from sklearn.neighbors.nearest_centroid import NearestCentroid
 from sklearn import preprocessing
 from sklearn.feature_selection import RFECV
 from sklearn.svm import SVC,LinearSVC,l1_min_c
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression,LogisticRegressionCV
-from sklearn.grid_search import GridSearchCV,RandomizedSearchCV
-from sklearn.cross_validation import LeaveOneOut, LeavePOut, StratifiedKFold,StratifiedShuffleSplit
+from sklearn.model_selection import GridSearchCV,RandomizedSearchCV
+from sklearn.model_selection import LeaveOneOut, LeavePOut, StratifiedKFold,StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
 from nistats import glm as nsglm
@@ -35,16 +36,19 @@ class SBP:
     '''
     Pipeline for subtype base prediction
     '''
-    def __init__(self,verbose=True):
+    def __init__(self,verbose=True,dynamic=True,gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
         self.verbose=verbose
+        self.dynamic = dynamic
+        self.gamma = gamma
+        self.mask_part = mask_part
+        self.stage1_model_type = stage1_model_type
+        self.nSubtypes = nSubtypes
 
     def get_w(self,x,confounds):
         ### extract w values
         W = []
         for ii in range(len(self.st_crm)):
             W.append(self.st_crm[ii][1].compute_weights(self.st_crm[ii][0].transform(confounds,x[:,ii,:]),mask_part=self.mask_part))
-            #W.append(self.st_crm[ii][1].compute_weights(self.st_crm[ii][0].intercept() + self.st_crm[ii][0].transform(confounds,x[:,ii,:]),mask_part=self.mask_part))
-            #W.append(self.st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[:,ii,:]),mask_part=template_007.get_data()[template_020.get_data()>0]))
         xw = np.hstack(W)
         return subtypes.reshapeW(xw)
 
@@ -55,29 +59,23 @@ class SBP:
             x_ref = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=False)
             ## compute w values
             W.append(self.st_crm[ii][1].compute_weights(self.st_crm[ii][0].transform(confounds,x_ref),mask_part=self.mask_part))
-            #W.append(self.st_crm[ii][1].compute_weights(self.st_crm[ii][0].intercept()+self.st_crm[ii][0].transform(confounds,x_ref),mask_part=self.mask_part))
             del x_ref
 
         xw = np.hstack(W)
         return subtypes.reshapeW(xw)
 
 
-    def fit(self,x_dyn,confounds_dyn,x,confounds,y,extra_var=[],gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
-        self.dynamic = True
-        self.gamma = gamma
-        self.mask_part = mask_part
-        self.stage1_model_type = stage1_model_type
-        self.nSubtypes = nSubtypes
+    def fit(self,x_dyn,confounds_dyn,x,confounds,y,extra_var=[]):
 
         if self.verbose: start = time.time()
         ### train subtypes
         self.st_crm = []
         for ii in range(x.shape[1]):
             crm = prediction.ConfoundsRm(confounds_dyn,x_dyn[:,ii,:])
+            # st
             st=subtypes.clusteringST()
-            #st.fit_network(crm.intercept()+crm.transform(confounds_dyn,x_dyn[:,ii,:]),nSubtypes=nSubtypes)
-            st.fit_network(crm.transform(confounds_dyn,x_dyn[:,ii,:]),nSubtypes=nSubtypes)
-            self.st_crm.append([crm,st])
+            st.fit_network(crm.transform(confounds_dyn,x_dyn[:,ii,:]),nSubtypes=self.nSubtypes)
+            self.st_crm_s2.append([crm,st])
 
         ### extract w values
         xw = self.get_w(x,confounds)
@@ -92,19 +90,18 @@ class SBP:
 
         ### prediction model
         if self.verbose: start = time.time()
-        tlp = TwoLevelsPrediction(self.verbose)
-        tlp.fit(all_var,all_var,y,stage1_model_type=stage1_model_type,gamma=self.gamma)
+        tlp = TwoLevelsPrediction(self.verbose,stage1_model_type=self.stage1_model_type,gamma=self.gamma)
+        tlp.fit(all_var,all_var,y)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
         ### save parameters
         self.tlp = tlp
 
-    def fit_files_st(self,files_path_st,subjects_id_list_st,confounds_st,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
-        self.dynamic = dynamic
-        self.gamma = gamma
-        self.mask_part = mask_part
-        self.stage1_model_type = stage1_model_type
-        self.nSubtypes = nSubtypes
+    def fit_files_st(self,files_path_st,subjects_id_list_st,confounds_st,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[]):
+        '''
+        Use a list of subject IDs and search for them in the path, grab the results per network.
+        Same as fit_files() except that you can train and test on different set of data
+        '''
         if self.verbose: start = time.time()
         ### train subtypes
         self.st_crm = []
@@ -112,15 +109,15 @@ class SBP:
         xw = []
         for ii in range(n_seeds):
             print('Train seed '+str(ii+1))
-            if dynamic:
-                [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=dynamic)
+            if self.dynamic:
+                [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=self.dynamic)
                 confounds_dyn = []
                 for jj in range(len(x_dyn)):
                     confounds_dyn.append((confounds_st[jj],)*x_dyn[jj].shape[0])
                 confounds_dyn = np.vstack(confounds_dyn)
                 x_dyn = np.vstack(x_dyn)
             else:
-                x_ref = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=dynamic)
+                x_ref = sbp_util.grab_rmap(subjects_id_list_st,files_path_st,ii,dynamic=self.dynamic)
                 x_dyn = x_ref
                 confounds_dyn = confounds_st
 
@@ -129,7 +126,7 @@ class SBP:
             crm = prediction.ConfoundsRm(confounds_dyn,x_dyn)
             ## extract subtypes
             st=subtypes.clusteringST()
-            st.fit_network(crm.transform(confounds_dyn,x_dyn),nSubtypes=nSubtypes)
+            st.fit_network(crm.transform(confounds_dyn,x_dyn),nSubtypes=self.nSubtypes)
             self.st_crm.append([crm,st])
             del x_dyn
 
@@ -145,69 +142,16 @@ class SBP:
 
         ### prediction model
         if self.verbose: start = time.time()
-        tlp = TwoLevelsPrediction(self.verbose)
-        tlp.fit(all_var,all_var,y,stage1_model_type=stage1_model_type,gamma=self.gamma)
+        self.tlp = TwoLevelsPrediction(self.verbose,stage1_model_type=self.stage1_model_type,gamma=self.gamma)
+        self.tlp.fit(all_var,all_var,y)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
-        ### save parameters
-        self.tlp = tlp
 
-
-    def fit_files(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[],dynamic=True,gamma=0.999,stage1_model_type='svm',nSubtypes=7,mask_part=[]):
-        self.dynamic = dynamic
-        self.gamma = gamma
-        self.mask_part = mask_part
-        self.stage1_model_type = stage1_model_type
-        self.nSubtypes = nSubtypes
-        if self.verbose: start = time.time()
-        ### train subtypes
-        self.st_crm = []
-        #for ii in [5,13]:#range(x.shape[1]):
-        xw = []
-        for ii in range(n_seeds):
-            print('Train seed '+str(ii+1))
-            if dynamic:
-                [x_dyn,x_ref] = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=dynamic)
-                confounds_dyn = []
-                for jj in range(len(x_dyn)):
-                    confounds_dyn.append((confounds[jj],)*x_dyn[jj].shape[0])
-                confounds_dyn = np.vstack(confounds_dyn)
-                x_dyn = np.vstack(x_dyn)
-            else:
-                x_ref = sbp_util.grab_rmap(subjects_id_list,files_path,ii,dynamic=dynamic)
-                x_dyn = x_ref
-                confounds_dyn = confounds
-
-            ## regress confounds
-            crm = prediction.ConfoundsRm(confounds_dyn,x_dyn)
-            ## extract subtypes
-            st=subtypes.clusteringST()
-            st.fit_network(crm.transform(confounds_dyn,x_dyn),nSubtypes=nSubtypes)
-            self.st_crm.append([crm,st])
-            del x_dyn
-            ## compute w values
-            xw.append(self.st_crm[-1][1].compute_weights(self.st_crm[-1][0].transform(confounds,x_ref)))
-            del x_ref
-        ### extract w values
-        #xw = self.get_w(x,confounds)
-        xw = np.hstack(xw)
-        xw = subtypes.reshapeW(xw)
-        if self.verbose: print("Subtype extraction, Time elapsed: {}s)".format(int(time.time() - start)))
-
-        ### Include extra covariates
-        if len(extra_var)!=0:
-            all_var = np.hstack((xw,extra_var))
-        else:
-            all_var = xw
-
-        ### prediction model
-        if self.verbose: start = time.time()
-        tlp = TwoLevelsPrediction(self.verbose)
-        tlp.fit(all_var,all_var,y,stage1_model_type=stage1_model_type,gamma=self.gamma)
-        if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
-
-        ### save parameters
-        self.tlp = tlp
+    def fit_files(self,files_path,subjects_id_list,confounds,y,n_seeds,extra_var=[]):
+        '''
+        use a list of subject IDs and search for them in the path, grab the results per network
+        '''
+        self.fit_files_st(files_path,subjects_id_list,confounds,files_path,subjects_id_list,confounds,y,n_seeds,extra_var)
 
     def predict_files(self,files_path,subjects_id_list,confounds,extra_var=[]):
         xw = self.get_w_files(files_path,subjects_id_list,confounds)
@@ -231,10 +175,10 @@ class SBP:
 
     def score_files(self,files_path,subjects_id_list,confounds,y,extra_var=[]):
         res = self.predict_files(files_path,subjects_id_list,confounds,extra_var)
-        l1_y_pred = res[:,0]
+        l1_y_pred = (res[:,0]>0).astype(int)
         risk_mask = res[:,1]>0
-        right_cases = accuracy_score(y[risk_mask],res[risk_mask,0])
-        left_cases = accuracy_score(y[~risk_mask],res[~risk_mask,0])
+        right_cases = accuracy_score(y[risk_mask],l1_y_pred[risk_mask])
+        left_cases = accuracy_score(y[~risk_mask],l1_y_pred[~risk_mask])
         self.res    = np.vstack((y,res[:,0],res[:,1]))
         self.scores = (accuracy_score(y,l1_y_pred),left_cases,right_cases)
         return self.scores
@@ -284,8 +228,11 @@ class TwoLevelsPrediction:
     '''
     2 Level prediction
     '''
-    def __init__(self,verbose=True):
+    def __init__(self,verbose=True,stage1_model_type='svm',gamma=0.999):
         self.verbose=verbose
+        self.stage1_model_type = stage1_model_type
+        self.gamma = gamma
+
 
     def auto_gamma(self,proba,gamma,thresh=0.15):
         while (np.mean(proba>gamma)<=thresh):
@@ -293,46 +240,44 @@ class TwoLevelsPrediction:
 
         return (proba>gamma).astype(int),gamma
 
-    def fit(self,xw,xwl2,y,gs=4,stage1_model_type='svm',retrain_l1=False,gamma=0.999):
-        self.stage1_model_type = stage1_model_type
-        self.gamma = gamma
+    def fit(self,xw,xwl2,y,gs=4,retrain_l1=False):
         print 'Stage 1'
-        if stage1_model_type == 'logit':
+        if self.stage1_model_type == 'logit':
             clf = LogisticRegression(C=1,class_weight='balanced',penalty='l2',max_iter=300)
-        elif stage1_model_type == 'svm':
+        elif self.stage1_model_type == 'svm':
             #clf = SVC(kernel='linear', class_weight='balanced', C=.1,probability=False)
             clf = SVC(C=1.,cache_size=500,kernel='linear',class_weight='balanced',probability=False)
-        elif stage1_model_type == 'rf':
+        elif self.stage1_model_type == 'rf':
             clf = RandomForestClassifier(n_estimators=20,class_weight='balanced')
 
         # Stage 1
         #param_grid = dict(C=(np.array([5,3,1])))
-        if stage1_model_type == 'logit':
+        if self.stage1_model_type == 'logit':
             #param_grid = dict(C=(10**np.arange(1.,-2.,-0.5)))
             #param_grid = dict(C=(np.logspace(-.2, 1., 15)))
             #param_grid = dict(C=(np.arange(3,1,-0.5)))
             param_grid = dict(C=(5,5.0001))
-        elif stage1_model_type =='svm':
+        elif self.stage1_model_type =='svm':
             param_grid = dict(C=(np.arange(3.5,0.,-0.5)))
             param_grid = dict(C=(1.,1.00001))
             #param_grid = dict(C=(np.logspace(-1.5, 0, 10)))
             #param_grid = dict(C=(np.arange(2.,0.5,-0.05)))
             #param_grid = dict(C=(np.array([0.01, 0.1, 1, 10, 100, 1000])))
-        elif stage1_model_type == 'rf':
+        elif self.stage1_model_type == 'rf':
             param_grid = dict(n_estimators=(20,10))
 
-        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedKFold(y,n_folds=gs), n_jobs=-1,scoring='accuracy')
+        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedKFold(n_splits=gs), n_jobs=-1,scoring='accuracy')
         gridclf.fit(xw,y)
         self.clf1 = gridclf.best_estimator_
         if self.verbose:
             print self.clf1
             #print self.clf1.coef_
         #hm_y,y_pred_train = self.estimate_hitmiss(xw,y)
-        hm_y,proba = self.suffle_hm(xw,y,gamma=gamma,n_iter=100)
-        hm_y,auto_gamma = self.auto_gamma(proba,gamma)
+        hm_y,proba = self.suffle_hm(xw,y,gamma=self.gamma,n_iter=100)
+        hm_y,auto_gamma = self.auto_gamma(proba,self.gamma)
         self.auto_gamma = auto_gamma
         if self.verbose: proba
-        print 'Average hm score', np.mean(hm_y)
+        if self.verbose: print 'Average hm score', np.mean(hm_y)
         #self.clf3 = SVC(C=1.,cache_size=500,kernel='linear',class_weight='balanced',probability=False)
         #gamma=0.5
         #print 'n stage3 ',(proba>gamma).sum()
@@ -342,7 +287,6 @@ class TwoLevelsPrediction:
         print 'Stage 2'
         #Stage 2
         min_c = l1_min_c(xwl2,hm_y,loss='log')
-        if self.verbose: print 'minimum c: ',min_c
         #clf2 = LogisticRegression(C=10**0.1,class_weight=None,penalty='l2',solver='sag')
         #clf2 = LogisticRegression(C=1,class_weight=None,penalty='l2',solver='sag',max_iter=300)
         #clf2 = LinearSVC(class_weight='balanced',penalty='l1',dual=False)
@@ -390,10 +334,13 @@ class TwoLevelsPrediction:
         sample_w[new_classes==0] = tmp_samp_w[0]
         sample_w[new_classes==1] = tmp_samp_w[1]
 
-        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=sample_w), n_jobs=-1,scoring='accuracy')
+        #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=sample_w), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs),fit_params=dict(sample_weight=proba), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1,scoring='precision_weighted')
+        #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=gs), n_jobs=-1,scoring='accuracy')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='accuracy')#f1_weighted
+        #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='f1_weighted')
+        gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(n_splits=50, test_size=.2,random_state=1), n_jobs=-1,scoring='precision_weighted')
         #gridclf = GridSearchCV(clf2, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,fit_params=dict(sample_weight=sample_w),scoring='precision_weighted')
         gridclf.fit(xwl2,hm_y)
         clf2 = gridclf.best_estimator_
@@ -404,14 +351,14 @@ class TwoLevelsPrediction:
 
         self.clf2 = clf2
 
-        self.fit_2branch(xwl2,hm_y,y)
+        #self.fit_2branch(xwl2,hm_y,y)
         #self.robust_coef(xwl2,hm_y)
 
     def fit_branchmodel(self,xwl2,hm_y):
         clf = LogisticRegression(C=1.,class_weight='balanced',penalty='l1',solver='liblinear',max_iter=300)
         param_grid = dict(C=(np.logspace(-.2, 1, 15)))
-
-        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedShuffleSplit(hm_y, n_iter=50, test_size=.2,random_state=1), n_jobs=-1,scoring='accuracy')
+        #gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedKFold(hm_y,n_folds=4), n_jobs=-1,scoring='precision_weighted')
+        gridclf = GridSearchCV(clf, param_grid=param_grid, cv=StratifiedShuffleSplit(n_splits=50, test_size=.2,random_state=1), n_jobs=-1,scoring='accuracy')
         gridclf.fit(xwl2,hm_y)
         return gridclf.best_estimator_
 
@@ -421,17 +368,17 @@ class TwoLevelsPrediction:
         self.clf_1 = self.fit_branchmodel(xwl2[mask_,:],hm_y[mask_])
 
     def predict_2branch(self,xwl2,y_pred):
-        y_pred_l2 = np.zeros_like(y_pred)
+        y_pred_l2 = np.zeros_like(y_pred).astype(float)
         mask_ = y_pred==1
         y_pred_l2[~mask_] = self.clf_0.decision_function(xwl2[~mask_,:])
         y_pred_l2[mask_] = self.clf_1.decision_function(xwl2[mask_,:])
         return y_pred_l2
 
     def robust_coef(self,xwl2,hm_y,n_iter=100):
-        skf = StratifiedShuffleSplit(hm_y, n_iter=n_iter, test_size=.2,random_state=1)
+        skf = StratifiedShuffleSplit(n_splits=n_iter, test_size=.2,random_state=1)
         coefs_ = []
         intercept_ = []
-        for train,test in skf:
+        for train,test in skf.split(xwl2,hm_y):
             self.clf2.fit(xwl2[train,:],hm_y[train])
             coefs_.append(self.clf2.coef_)
             intercept_.append(self.clf2.intercept_)
@@ -439,9 +386,9 @@ class TwoLevelsPrediction:
         self.clf2.intercept_ = np.stack(intercept_).mean(0)
 
     def predict(self,xw,xwl2):
-        y_pred1 = self.clf1.predict(xw)
+        y_pred1 = self.clf1.decision_function(xw)
         y_pred2 = self.clf2.decision_function(xwl2)
-        y_pred2 = self.predict_2branch(xwl2,y_pred1)
+        #y_pred2 = self.predict_2branch(xwl2,y_pred1)
         #y_pred2 = self.clf2.predict(xwl2)
         return np.array([y_pred1,y_pred2]).T
 
@@ -453,15 +400,15 @@ class TwoLevelsPrediction:
         left_cases = accuracy_score(y[~risk_mask],res[~risk_mask,0])
 
         #print 'clf3: ',self.clf3.score(xw,y)
-        return accuracy_score(y,l1_y_pred),left_cases,right_cases
+        return accuracy_score(y,(l1_y_predi>0).astype(int)),left_cases,right_cases
 
     def suffle_hm(self,x,y,gamma=0.5,n_iter=50):
         hm_count = np.zeros_like(y).astype(float)
         hm = np.zeros_like(y).astype(float)
-        skf = StratifiedShuffleSplit(y, n_iter=n_iter, test_size=.25,random_state=1)
+        skf = StratifiedShuffleSplit(n_splits=n_iter, test_size=.25,random_state=1)
         coefs_ = []
         sv_ = []
-        for train,test in skf:
+        for train,test in skf.split(x,y):
             self.clf1.fit(x[train,:],y[train])
             hm_count[test] += 1.
             hm[test] += (self.clf1.predict(x[test,:])==y[test]).astype(float)
