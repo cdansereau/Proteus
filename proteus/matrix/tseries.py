@@ -215,10 +215,14 @@ def transf2param(transf):
     tsl = O
     return rot,tsl
 
-def volterra(rot,tsl,expansion=24):
-    rot_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],rot[:,1:]-rot[:,:-1]))
-    tsl_dev = np.hstack((np.array([0,0,0])[...,np.newaxis],tsl[:,1:]-tsl[:,:-1]))
+def volterra(tsl,rot,expansion=24):
+    #rot_dev = rot - np.vstack((np.array([0,0,0])[np.newaxis,:],rot[:-1,:]))
+    rot_dev = np.vstack((np.array([0,0,0])[np.newaxis,:],rot[1:,:]-rot[:-1,:]))
+    #tsl_dev = tsl - np.vstack((np.array([0,0,0])[np.newaxis,:],tsl[:-1,:]))
+    tsl_dev = np.vstack((np.array([0,0,0])[np.newaxis,:],tsl[1:,:]-tsl[:-1,:]))
     # return expansions
+    if expansion==12:
+        return np.hstack((rot,tsl,rot_dev,tsl_dev))
     if expansion==24:
-        return np.vstack((rot,tsl,rot**2,tsl**2,rot_dev,tsl_dev,rot_dev**2,tsl_dev**2))
+        return np.hstack((rot,tsl,rot**2,tsl**2,rot_dev,tsl_dev,rot_dev**2,tsl_dev**2))
 
