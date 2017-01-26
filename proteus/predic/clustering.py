@@ -5,13 +5,19 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.cluster.hierarchy import linkage
 from scipy.cluster.hierarchy import fcluster
 import numpy as np
+from sklearn.preprocessing import scale
 from proteus.matrix import tseries as ts
 
 def hclustering(data, t):
+    # Normalize features
+    data_ = scale(data, axis=0, with_mean=True, with_std=True, copy=True)
+    # Normalize observation
+    #data_ = scale(data_, axis=1, with_mean=True, with_std=True)
+
     #row_dist = pd.DataFrame(squareform(pdist(data, metric='euclidean')))
-    row_dist = np.corrcoef(data)
+    #row_dist = np.corrcoef(data)
     #row_dist = data
-    row_clusters = linkage(row_dist, method='ward')
+    row_clusters = linkage(data_, method='ward')
     ind = fcluster(row_clusters, t, criterion='maxclust')
     return ind
 
