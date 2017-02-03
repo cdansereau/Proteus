@@ -6,7 +6,7 @@ import copy
 from numba import jit
 import math
 
-@jit
+
 def vec2map(vec,vol):
     new_vol = copy.deepcopy(vol)
     mask = new_vol.get_data()>0
