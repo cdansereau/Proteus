@@ -1,24 +1,17 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-#from sklearn.feature_selection import chi2
 from sklearn.feature_selection import SelectFpr
-from sklearn.feature_selection import SelectKBest
-from sklearn import cross_validation
-from sklearn.cross_validation import StratifiedKFold
+from sklearn import model_selection
+from sklearn.model_selection import StratifiedKFold
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn import svm
 import predlib as plib
 from sklearn import preprocessing
 from proteus.matrix import tseries as ts
-from proteus.predic import betacluster as bc
 from sklearn.svm import SVC
-from sklearn.svm import LinearSVC
-#data_path = '/home/cdansereau/Dropbox/McGill-publication/Papers/PredicAD/prediction_data_p2p/data_connec100_prediction.csv'
-#data_path = '/home/cdansereau/Dropbox/McGill-publication/Papers/PredicAD/prediction_data_p2p/data_connec100_prediction_compcor.csv'
 from sklearn import metrics
 from sklearn import linear_model
-from sklearn.feature_selection import VarianceThreshold
 
 def custom_scale(x):
     #print x
@@ -108,7 +101,7 @@ class ConfoundsRm:
             return data
         else:
             # batch convert the data
-            nbatch = data.shape[0]/(batch_size)# number of batch                                                     i
+            nbatch = data.shape[0]/(batch_size)# number of batch
             batch_res = []
             for idx_batch in range(nbatch):
                 if idx_batch == nbatch-1:
@@ -139,7 +132,7 @@ def compute_acc_conf(x,y,confounds,verbose=False,balanced=True,loo=False,nfolds=
     #x = ts.normalize_data(x)
     #cv = cross_validation.KFold(len(y),n_folds=10)
     if loo:
-        cv = cross_validation.LeaveOneOut(len(y))
+        cv = model_selection.LeaveOneOut(len(y))
     else:
         cv = StratifiedKFold(y=encoder.transform(y), n_folds=nfolds)
 
