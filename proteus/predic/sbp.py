@@ -1,32 +1,22 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-from sklearn.cluster import KMeans
-from proteus.predic import clustering as cls
-from proteus.matrix import tseries as ts
 from proteus.predic import prediction
 from proteus.predic import subtypes
-from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import MeanShift
-from sklearn.neighbors.nearest_centroid import NearestCentroid
-from sklearn import preprocessing
-from sklearn.feature_selection import RFECV
+from proteus.predic.high_confidence import TwoStagesPrediction
 from sklearn.svm import SVC, LinearSVC, l1_min_c
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from sklearn.model_selection import LeaveOneOut, LeavePOut, StratifiedKFold, StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestClassifier
-from nistats import glm as nsglm
-import statsmodels.stats.multitest as smm
 import multiprocessing
 import time
 from proteus.io import sbp_util
 
 
 def compute_loo_parall((net_data_low_main, y, confounds, n_subtypes, train_index, test_index)):
-    my_sbp = sbp()
+    my_sbp = SBP()
     my_sbp.fit(net_data_low_main[train_index, ...], y[train_index], confounds[train_index, ...], n_subtypes,
                verbose=False)
     tmp_scores = my_sbp.predict(net_data_low_main[test_index, ...], confounds[test_index, ...])
@@ -116,11 +106,12 @@ class SBP:
 
         ### prediction model
         if self.verbose: start = time.time()
-        self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
-                                       stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric,
-                                       s2_branches=self.s2_branches)
+        #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
+        #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric,
+        #                               s2_branches=self.s2_branches)
+        self.tlp = TwoStagesPrediction(self.verbose)
         self.tlp.fit(all_var, all_var_s2, y)
-        if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
+        if self.verbose: print("Two Stages prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
     def fit_files_st(self, files_path_st, subjects_id_list_st, confounds_st, files_path, subjects_id_list, confounds, y,
                      n_seeds, extra_var=[]):
@@ -173,8 +164,9 @@ class SBP:
 
         ### prediction model
         if self.verbose: start = time.time()
-        self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
-                                       stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
+        #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
+        #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
+        self.tlp = TwoStagesPrediction(self.verbose)
         self.tlp.fit(all_var, all_var_s2, y)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
@@ -316,6 +308,7 @@ class TwoLevelsPrediction:
                                scoring=self.stage1_metric)
         gridclf.fit(xw, y)
         self.clf1 = gridclf.best_estimator_
+
         # self.clf1 = clf.fit(xw,y)
         if self.verbose:
             print self.clf1
