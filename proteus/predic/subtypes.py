@@ -27,12 +27,12 @@ def st_multi_transform(st_crm,confounds,x,nsplit=1):
     W = []
     for ii in range(len(st_crm)):
         #W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii])))
-        W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii]),mask_part=chunks(x[ii][0,:],nsplit)))
+        W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii]), mask_part=_chunks(x[ii][0, :], nsplit)))
     w_ = np.hstack(W)
     w_ = reshapeW(w_)
     return w_
 
-def chunks(l, n):
+def _chunks(l, n):
     w = len(l)/(n)
     k=1
     l = np.zeros_like(l)
@@ -80,7 +80,7 @@ class clusteringST:
             #tmp_subj_identity = np.corrcoef(net_data_low[:,i,:])
             #ind_st = cls.hclustering(tmp_subj_identity,nSubtypes)
             # subjects X network_nodes
-            ind_st = cls.hclustering(net_data_low[:,i,:]-self.normalized_net_template[-1],nSubtypes)
+            ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
             #ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
 
             for j in range(nSubtypes):
@@ -103,7 +103,7 @@ class clusteringST:
         else:
             return self.W
 
-    def norm_subjects(self,data,ref=[]):
+    def _norm_subjects(self, data, ref=[]):
         if len(data.shape) == 2:
 
             ref_avg_rmaps = ref.mean()
@@ -117,7 +117,7 @@ class clusteringST:
             print ref_avg_rmaps.shape,avrg_rmaps.shape,scaling_factor.shape
             return np.swapaxes(np.swapaxes(data,0,2)*np.swapaxes(scaling_factor,0,1),0,2)
 
-    def robust_st(self,net_data_low,nSubtypes,n_iter=50):
+    def _robust_st(self, net_data_low, nSubtypes, n_iter=50):
         bs_cluster = []
         n = net_data_low.shape[0]
         stab_ = np.zeros((n,n)).astype(float)
@@ -149,7 +149,7 @@ class clusteringST:
 
             # indentity matrix of the corelation between subjects
             #ind_st = cls.hclustering(net_data_low[:,i,:],nSubtypes)
-            ind_st,stab_ = self.robust_st(net_data_low[:,i,:]-self.normalized_net_template[-1],nSubtypes)
+            ind_st,stab_ = self._robust_st(net_data_low[:, i, :] - self.normalized_net_template[-1], nSubtypes)
 
             for j in range(nSubtypes):
                 mask_stable = (stab_[ind_st==j+1,:].mean(0)>stab_thereshold)[ind_st==j+1]
@@ -186,7 +186,7 @@ class clusteringST:
         self.normalized_net_template.append(np.mean(net_data_low[:,:],axis=0))
         #self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
         # indentity matrix of the corelation between subjects
-        ind_st,stab_ = self.robust_st(net_data_low-self.normalized_net_template[-1],nSubtypes)
+        ind_st,stab_ = self._robust_st(net_data_low - self.normalized_net_template[-1], nSubtypes)
 
         for j in range(nSubtypes):
             mask_stable = (stab_[ind_st==j+1,:].mean(0)>stab_thereshold)[ind_st==j+1]
@@ -212,17 +212,20 @@ class clusteringST:
         self.flag_2level = False
         self.nnet_cluster = 1
         self.nSubtypes = nSubtypes
+        #self.scalers = []
         # net_data_low --> Dimensions: nSubjects, nNetwork_low, nNetwork
 
         self.normalized_net_template = []
         # average template
+        #self.scalers.append(preprocessing.StandardScaler())
+        #net_data_low = self.scalers[-1].fit_transform(net_data_low_)
         self.normalized_net_template.append(np.mean(net_data_low,axis=0))
         #self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
         # indentity matrix of the corelation between subjects
-        ind_st = cls.hclustering(net_data_low - self.normalized_net_template[-1],nSubtypes)
+        ind_st = cls.hclustering(net_data_low,nSubtypes)
 
         for j in range(nSubtypes):
-            data_tmp = np.median(net_data_low[ind_st==j+1,:]- self.normalized_net_template[-1],axis=0)[np.newaxis,...]
+            data_tmp = np.median(net_data_low[ind_st==j+1,:],axis=0)[np.newaxis,...]
             if j == 0:
                 st_templates_tmp = data_tmp
             else:
@@ -239,7 +242,10 @@ class clusteringST:
             return self.W
 
 
-    def fit_2level(self,net_data_low_l1,net_data_low_l2,nSubtypes_l1=5,nSubtypes_l2=2,reshape_w=True):
+    def _fit_2level(self, net_data_low_l1, net_data_low_l2, nSubtypes_l1=5, nSubtypes_l2=2, reshape_w=True):
+
+        # Discontinued function
+
         self.flag_2level = True
         self.nnet_cluster = net_data_low_l1.shape[1]
         self.nSubtypes = nSubtypes_l1 * nSubtypes_l2
@@ -331,22 +337,6 @@ class clusteringST:
             return self.W_l2
 
 
-    def compute_weights_old(self,net_data_low,st_templates):
-        # calculate the weights for each subjects
-        W = np.zeros((net_data_low.shape[0],st_templates.shape[0],st_templates.shape[1]))
-        for i in range(net_data_low.shape[0]):
-            for j in range(st_templates.shape[0]):
-                for k in range(st_templates.shape[1]):
-                    # Demean
-                    average_template = np.median(self.net_data_low[:,j,:],axis=0)
-                    #average_template = self.st_templates[j,:,:].mean(axis=0)
-                    dm_map = net_data_low[i,j,:] - average_template
-                    dm_map = preprocessing.scale(dm_map)
-                    st_dm_map = st_templates[j,k,:] - average_template
-                    W[i,j,k] = np.corrcoef(st_dm_map,dm_map)[-1,0:-1]
-
-        return W
-
     def compute_weights(self,net_data_low,st_templates=[],mask_part=[]):
 
 
@@ -357,11 +347,13 @@ class clusteringST:
         for j in range(st_templates.shape[0]):
             average_template = self.normalized_net_template[j]
             if len(net_data_low.shape)==2:
+                #net_data_low = self.scalers[j].transform(net_data_low_)
                 rmaps = net_data_low - average_template
             else:
+                #net_data_low[:,j,:] = self.scalers[j].transform(net_data_low_[:,j,:])
                 rmaps = net_data_low[:,j,:] - average_template
             st_rmap = st_templates[j,:,:] - average_template
-            tmp_rmap = self.compute_w(rmaps,st_rmap,mask_part)
+            tmp_rmap = self._compute_w(rmaps, st_rmap, mask_part)
             if j==0:
                 W = np.zeros((net_data_low.shape[0],st_templates.shape[0],tmp_rmap.shape[1]))
             W[:,j,:] = tmp_rmap
@@ -369,7 +361,7 @@ class clusteringST:
         return np.nan_to_num(W)
 
 
-    def compute_w_global(self,X,ref):
+    def _compute_w_global(self, X, ref):
         range_ = 1
         if len(X.shape) == 3:
             # multiple networks
@@ -385,22 +377,21 @@ class clusteringST:
 
         return w_global
 
-    def compute_w(self,X,ref,mask_part=[]):
+    def _compute_w(self, X, ref, mask_part=[]):
         if mask_part != []:
             # sub_w based on partition
             w_ = []
             list_id = np.unique(mask_part)
             for idx in np.delete(list_id,np.where(list_id==0)):
                 mask_ = mask_part == idx
-                w_.append(self.compute_w_global(X[...,mask_],ref[...,mask_]))
+                w_.append(self._compute_w_global(X[..., mask_], ref[..., mask_]))
             w_ = np.hstack(w_)
         else:
             # global mode, no sub-partition
-            w_ = self.compute_w_global(X,ref)
+            w_ = self._compute_w_global(X, ref)
         return w_
 
-    def compute_weights_l2(self,net_data_low):
-
+    def _compute_weights_l2(self, net_data_low):
         corrected_ndl = net_data_low.copy()
         W_l1 = self.compute_weights(net_data_low,self.st_templates_l1)
 
@@ -425,7 +416,7 @@ class clusteringST:
         if self.flag_2level:
             # calculate the weights for each subjects
             #W = self.compute_weights(net_data_low,self.st_templates_l2)
-            W = self.compute_weights_l2(net_data_low)
+            W = self._compute_weights_l2(net_data_low)
         else:
             # calculate the weights for each subjects
             W = self.compute_weights(net_data_low,self.st_templates,mask_part)
