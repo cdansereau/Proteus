@@ -4,14 +4,8 @@ import numpy as np
 from sklearn.cluster import KMeans
 from proteus.predic import clustering as cls
 from proteus.matrix import tseries as ts
-from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import MeanShift
-# from sklearn.lda import LDA
 from sklearn.neighbors.nearest_centroid import NearestCentroid
-from sklearn import preprocessing
 from sklearn.cross_validation import ShuffleSplit
-from scipy.cluster.hierarchy import linkage
-from scipy.cluster.hierarchy import fcluster
 from proteus.predic import prediction
 
 
@@ -28,7 +22,6 @@ def st_multi_fit(confounds, x, nSubtypes=3):
 def st_multi_transform(st_crm, confounds, x, nsplit=1):
     W = []
     for ii in range(len(st_crm)):
-        # W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds,x[ii])))
         W.append(st_crm[ii][1].compute_weights(st_crm[ii][0].transform(confounds, x[ii]),
                                                mask_part=_chunks(x[ii][0, :], nsplit)))
     w_ = np.hstack(W)
