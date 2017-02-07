@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 from proteus.predic import clustering as cls
 from proteus.matrix import tseries as ts
 from sklearn.neighbors.nearest_centroid import NearestCentroid
-from sklearn.cross_validation import ShuffleSplit
+from sklearn.model_selection import ShuffleSplit
 from proteus.predic import prediction
 
 
@@ -50,6 +50,7 @@ class clusteringST:
 
     def __init__(self, verbose=True):
         self.verbose = verbose
+        self.w_scaler = StandardScaler(with_mean=True, with_std=False)
 
     def fit(self, net_data_low, nSubtypes=3, reshape_w=True):
         # net_data_low = net_data_low_main.copy()
@@ -96,8 +97,10 @@ class clusteringST:
 
         # calculate the weights for each subjects
         self.W = self.compute_weights(net_data_low, self.st_templates)
+
+
         if reshape_w:
-            return self.reshapeW(self.W)
+            return reshapeW(self.W)
         else:
             return self.W
 
@@ -168,7 +171,7 @@ class clusteringST:
         # calculate the weights for each subjects
         self.W = self.compute_weights(net_data_low, self.st_templates)
         if reshape_w:
-            return self.reshapeW(self.W)
+            return reshapeW(self.W)
         else:
             return self.W
 
@@ -200,7 +203,7 @@ class clusteringST:
         # calculate the weights for each subjects
         self.W = self.compute_weights(net_data_low, self.st_templates)
         if reshape_w:
-            return self.reshapeW(self.W)
+            return reshapeW(self.W)
         else:
             return self.W
 
@@ -232,8 +235,9 @@ class clusteringST:
         del st_templates_tmp
         # calculate the weights for each subjects
         self.W = self.compute_weights(net_data_low, self.st_templates)
+
         if reshape_w:
-            return self.reshapeW(self.W)
+            return reshapeW(self.W)
         else:
             return self.W
 
@@ -333,7 +337,7 @@ class clusteringST:
         # calculate the weights for each subjects
         self.W_l2 = self.compute_weights(net_data_low_l2, self.st_templates_l2)
         if reshape_w:
-            return self.reshapeW(self.W_l2)
+            return reshapeW(self.W_l2)
         else:
             return self.W_l2
 
@@ -355,9 +359,9 @@ class clusteringST:
             tmp_rmap = self._compute_w(rmaps, st_rmap, mask_part)
             if j == 0:
                 W = np.zeros((net_data_low.shape[0], st_templates.shape[0], tmp_rmap.shape[1]))
-            W[:, j, :] = tmp_rmap
+            W[:, j, :] = np.nan_to_num(tmp_rmap)
 
-        return np.nan_to_num(W)
+            return W
 
     def _compute_w_global(self, X, ref):
         range_ = 1
@@ -404,6 +408,12 @@ class clusteringST:
 
         return self.compute_weights(corrected_ndl, self.st_templates_l2)
 
+    def reshapeW_inv(self, W):
+
+        # reshape the matrix from [subjects, Nsubtypes, weights] to [subjects, vector of weights]
+        xw = W.reshape((W.shape[0], self.nnet_cluster, W.shape[1]/(self.nnet_cluster)))
+        return xw
+
     def transform(self, net_data_low, mask_part=[], reshape_w=True):
         '''
             Calculate the weights for each sub-types previously computed
@@ -411,23 +421,19 @@ class clusteringST:
         # compute the low scale version of the data
         # net_data_low = transform_low_scale(ts_data,self.ind_low_scale)
 
-        if self.flag_2level:
-            # calculate the weights for each subjects
+        #if self.flag_2level:
+        #    # calculate the weights for each subjects
             # W = self.compute_weights(net_data_low,self.st_templates_l2)
-            W = self._compute_weights_l2(net_data_low)
-        else:
+        #    W = self._compute_weights_l2(net_data_low)
+        #else:
             # calculate the weights for each subjects
-            W = self.compute_weights(net_data_low, self.st_templates, mask_part)
+        W = self.compute_weights(net_data_low, self.st_templates, mask_part)
 
         if reshape_w:
-            return self.reshapeW(W)
+            return reshapeW(W)
         else:
             return W
 
-    def reshapeW(self, W):
-        # reshape the matrix from [subjects, Nsubtypes, weights] to [subjects, vector of weights]
-        xw = W.reshape((W.shape[0], W.shape[1] * W.shape[2]))
-        return xw
 
     def fit_dev(self, net_data, nnet_cluster='auto', nSubtypes=3):
         self.nnet_cluster = nnet_cluster
