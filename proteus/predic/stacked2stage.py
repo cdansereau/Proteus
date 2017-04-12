@@ -1,20 +1,11 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-from sklearn.cluster import KMeans
-from proteus.predic import clustering as cls
-from proteus.matrix import tseries as ts
-from proteus.predic import prediction
-from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import MeanShift
-from sklearn.neighbors.nearest_centroid import NearestCentroid
-from sklearn import preprocessing
-from sklearn.feature_selection import RFECV
-from sklearn.svm import SVC, LinearSVC
-from sklearn.linear_model import LogisticRegression,LogisticRegressionCV,RidgeCV
-from sklearn.grid_search import GridSearchCV
-from sklearn.cross_validation import LeaveOneOut, LeavePOut, StratifiedKFold
-from sklearn.metrics import classification_report,accuracy_score
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import classification_report
 
 import multiprocessing
 import time
@@ -35,7 +26,7 @@ class StackedPrediction:
         gridclf.fit(x,y)
         #clf.fit(x,y)
         return gridclf.best_estimator_, gridclf.best_score_
-        #return clf,clf.C_
+        #return clf,0.0
 
     def fitMulti(self,x,y,skip_init=False):
         if not skip_init:

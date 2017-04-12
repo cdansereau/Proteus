@@ -2,8 +2,7 @@ __author__ = 'Christian Dansereau'
 
 import numpy as np
 from sklearn.feature_selection import SelectFpr
-from sklearn import model_selection
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold,LeaveOneOut
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn import svm
 import predlib as plib
@@ -81,6 +80,9 @@ class ConfoundsRm:
             if len(self.data_dim) == 3:
                 self.a1, self.a2, self.a3 = data.shape
                 data_ = data.reshape((self.a1, self.a2 * self.a3))
+            elif len(self.data_dim) == 4:
+                self.a1, self.a2, self.a3, self.a4 = data.shape
+                data_ = data.reshape((self.a1, self.a2 * self.a3 * self.a4))
             else:
                 data_ = data
             self.nconfounds = confounds.shape[1]
@@ -97,6 +99,10 @@ class ConfoundsRm:
                 data_ = data.reshape((data.shape[0], data.shape[1] * data.shape[2]))
                 res = data_ - self.reg.predict(confounds)
                 return res.reshape((data.shape[0], data.shape[1], data.shape[2]))
+            elif len(data.shape) == 4:
+                data_ = data.reshape((data.shape[0], data.shape[1] * data.shape[2] * data.shape[3]))
+                res = data_ - self.reg.predict(confounds)
+                return res.reshape((data.shape[0], data.shape[1], data.shape[2], data.shape[3]))
             else:
                 data_ = data
                 return data_ - self.reg.predict(confounds)
@@ -124,6 +130,8 @@ class ConfoundsRm:
     def intercept(self):
         if len(self.data_dim) == 3:
             return self.reg.intercept_.reshape((1, self.data_dim[1], self.data_dim[2]))
+        elif len(self.data_dim) == 4:
+            return self.reg.intercept_.reshape((1, self.data_dim[1], self.data_dim[2], self.data_dim[3]))
         else:
             return self.reg.intercept_
 
@@ -137,11 +145,8 @@ def compute_acc_conf(x, y, confounds, verbose=False, balanced=True, loo=False, n
     encoder = preprocessing.LabelEncoder()
     encoder.fit(y)
 
-    # remove intra matrix mean and var
-    # x = ts.normalize_data(x)
-    # cv = cross_validation.KFold(len(y),n_folds=10)
     if loo:
-        cv = model_selection.LeaveOneOut(len(y))
+        cv = LeaveOneOut(len(y))
     else:
         cv = StratifiedKFold(y=encoder.transform(y), n_folds=nfolds)
 
@@ -169,7 +174,7 @@ def compute_acc_conf(x, y, confounds, verbose=False, balanced=True, loo=False, n
         # bc_all.append(betacluster)
 
         if balanced:
-            clf = SVC(kernel='linear', class_weight='auto', C=C)
+            clf = SVC(kernel='linear', class_weight='balanced', C=C)
         else:
             clf = SVC(kernel='linear', C=C)
 
@@ -224,7 +229,7 @@ def sv_metric(n, nsv):
 
 def get_opt_model(x, y):
     # grid search and SVM
-    clf = svm.SVC(kernel='rbf', class_weight='auto')
+    clf = svm.SVC(kernel='rbf', class_weight='balanced')
     clf.probability = True
     # clf = svm.SVC(kernel='rbf')
     clf, best_score = plib.grid_search(clf, x, y, n_folds=10, verbose=False)
@@ -304,7 +309,7 @@ def multisplit(skf, X, y, stepsize=1000):
         # selectf = SelectKBest(f_classif, k=5).fit(pred1, y[train_index])
         selectf = SelectFpr().fit(pred1, y[train_index])
         clf3 = AdaBoostClassifier(n_estimators=100)
-        # clf3 = svm.SVC(class_weight='auto')
+        # clf3 = svm.SVC(class_weight='balanced')
         # clf3 = RandomForestClassifier(n_estimators=20)
         clf3.fit(selectf.transform(pred1), y[train_index])
         # Testing

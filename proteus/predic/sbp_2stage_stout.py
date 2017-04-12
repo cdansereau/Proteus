@@ -1,20 +1,10 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-from sklearn.cluster import KMeans
-from proteus.predic import clustering as cls
-from proteus.matrix import tseries as ts
-from proteus.predic import prediction
-from proteus.predic import subtypes
-from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import MeanShift
-from sklearn.neighbors.nearest_centroid import NearestCentroid
-from sklearn import preprocessing
-from sklearn.feature_selection import RFECV
-from sklearn.svm import SVC,LinearSVC,l1_min_c
-from sklearn.linear_model import LogisticRegression,LogisticRegressionCV
-from sklearn.grid_search import GridSearchCV,RandomizedSearchCV
-from sklearn.cross_validation import LeaveOneOut, LeavePOut, StratifiedKFold,StratifiedShuffleSplit
+from sklearn.svm import SVC,l1_min_c
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold,StratifiedShuffleSplit
 from sklearn.metrics import accuracy_score
 from nistats import glm as nsglm
 import statsmodels.stats.multitest as smm
@@ -31,6 +21,9 @@ class SBP:
     '''
     Pipeline for subtype base prediction
     '''
+    def __init__(self,verbose=True):
+        self.verbose=verbose
+
     def fit(self,net_data_low_main,y,confounds,n_subtypes,st,cf_rm,flag_feature_select=True,extra_var=[],verbose=True):
         self.verbose = verbose
         ### regress confounds from the connectomes
@@ -212,7 +205,7 @@ class TwoLevelsPrediction:
             print self.clf1
             print self.clf1.coef_
         #hm_y,y_pred_train = self.estimate_hitmiss(xw,y)
-        hm_y,proba = self.suffle_hm(xw,y,gamma=.9,n_iter=100)
+        hm_y,proba = self.suffle_hm(xw,y,gamma=.999,n_iter=100)
 
         print 'Stage 2'
         #Stage 2
@@ -227,11 +220,11 @@ class TwoLevelsPrediction:
         #param_grid = dict(C=(10**np.arange(1.,-2.,-0.5)))
         #param_grid = dict(C=(np.arange(3,1,-0.5)))
         #param_grid = dict(C=(np.logspace(-0.5, 2., 30)))
-        #param_grid = dict(C=(np.logspace(1., 1.6, 30)))
+        #param_grid = dict(C=(np.logspace(1., -2., 15)))
         param_grid = dict(C=(np.logspace(-.2, 1., 15)))
         #param_grid = dict(C=(np.logspace(0,0.00001, 2)))
         #param_grid = dict(C=(np.logspace(np.log10(min_c), 0., 15)))
-        #param_grid = dict(C=(1,1.0001)) 
+        #param_grid = dict(C=(1,1.10001)) 
         # 2 levels balancing
         '''
         new_classes = np.zeros_like(y)
@@ -290,14 +283,18 @@ class TwoLevelsPrediction:
         hm = np.zeros_like(y).astype(float)
         skf = StratifiedShuffleSplit(y, n_iter=n_iter, test_size=.25,random_state=np.random.seed(42))
         coefs_ = []
+        sv_ = []
         for train,test in skf:
             self.clf1.fit(x[train,:],y[train])
             hm_count[test] += 1.
             hm[test] += (self.clf1.predict(x[test,:])==y[test]).astype(float)
-            coefs_.append(self.clf1.coef_)
+            coefs_.append(self.clf1.dual_coef_)
+            sv_.append(self.clf1.support_vectors_)
         proba = hm/hm_count
         print hm_count
         print proba
+        #self.clf1.dual_coef_ = np.stack(coefs_).mean(0)
+        #self.clf1.support_vectors_ = np.stack(sv_).mean(0)
         self.clf1.fit(x,y)
         return (proba>gamma).astype(int),proba
 

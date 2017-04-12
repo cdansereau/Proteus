@@ -50,7 +50,6 @@ class clusteringST:
 
     def __init__(self, verbose=True):
         self.verbose = verbose
-        self.w_scaler = StandardScaler(with_mean=True, with_std=False)
 
     def fit(self, net_data_low, nSubtypes=3, reshape_w=True):
         # net_data_low = net_data_low_main.copy()

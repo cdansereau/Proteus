@@ -87,6 +87,7 @@ def dynamic_rmaps_std(data_,partition,voxel_mask,window=20):
     avg_ref = prediction.get_corrvox_std(data,voxel_mask,partition)
     return dynamic_data,avg_ref
 
+
 def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_path,multiprocess=True,window=20,gs=False):
     print('Compute seed maps ...')
     n_seed = len(np.unique(seed_partition.get_data())[1:])
@@ -117,7 +118,7 @@ def compute_seed_map(seed_partition,brain_mask,list_files,subject_ids,output_pat
 
 def seed_map_multiprocess((subj_id,file_path,seed_partition,brain_mask,output_path,window,gs)):
     vol_file = nib.load(file_path).get_data()
-    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask,window=window,gs)
+    dynamic_data,avg_data = dynamic_rmaps(vol_file,seed_partition.get_data(),brain_mask,window=window,gs=gs)
     del vol_file
     #np.savez_compressed(output_path,dynamic_data=dynamic_data,avg_data=avg_data)
     util.write({'dynamic_data':dynamic_data,'avg_data':avg_data},output_path)

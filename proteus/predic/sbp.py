@@ -28,12 +28,14 @@ class SBP:
     Pipeline for subtype base prediction
     '''
 
-    def __init__(self, verbose=True, dynamic=True, gamma=0.999, stage1_model_type='svm', nSubtypes=7,
+    def __init__(self, verbose=True, dynamic=True, stage1_model_type='svm', nSubtypes=7,
                  nSubtypes_stage2=0, mask_part=[], stage1_metric='accuracy', stage2_metric='f1_weighted',
-                 s2_branches=True):
+                 s2_branches=True, min_gamma=0.8, thresh_ratio=0.1, gamma=1.):
         self.verbose = verbose
         self.dynamic = dynamic
         self.gamma = gamma
+        self.min_gamma = min_gamma
+        self.thresh_ratio = thresh_ratio
         self.mask_part = mask_part
         self.stage1_model_type = stage1_model_type
         self.nSubtypes = nSubtypes
@@ -68,6 +70,7 @@ class SBP:
             ## compute w values
             W.append(self.st_crm[ii][1].compute_weights(self.st_crm[ii][0].transform(confounds, x_ref),
                                                         mask_part=self.mask_part))
+
             W2.append(self.st_crm[ii][2].compute_weights(self.st_crm[ii][0].transform(confounds, x_ref),
                                                          mask_part=self.mask_part))
             del x_ref
@@ -109,8 +112,10 @@ class SBP:
         #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric,
         #                               s2_branches=self.s2_branches)
-        self.tlp = TwoStagesPrediction(self.verbose)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
+        #self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         self.tlp.fit(all_var, all_var_s2, y)
+        # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
         if self.verbose: print("Two Stages prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
     def fit_files_st(self, files_path_st, subjects_id_list_st, confounds_st, files_path, subjects_id_list, confounds, y,
@@ -166,8 +171,10 @@ class SBP:
         if self.verbose: start = time.time()
         #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
-        self.tlp = TwoStagesPrediction(self.verbose)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
+        # self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         self.tlp.fit(all_var, all_var_s2, y)
+        # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
     def fit_files(self, files_path, subjects_id_list, confounds, y, n_seeds, extra_var=[]):
@@ -177,11 +184,11 @@ class SBP:
         self.fit_files_st(files_path, subjects_id_list, confounds, files_path, subjects_id_list, confounds, y, n_seeds,
                           extra_var)
 
-    def predict_files(self, files_path, subjects_id_list, confounds, extra_var=[]):
+    def predict_files(self, files_path, subjects_id_list, confounds, extra_var=[], recurrent=False):
         xw, xw2 = self.get_w_files(files_path, subjects_id_list, confounds)
-        return self.predict([xw, xw2], [], extra_var, skip_confounds=True)
+        return self.predict([xw, xw2], [], extra_var, skip_confounds=True, recurrent=recurrent)
 
-    def predict(self, x, confounds, extra_var=[], skip_confounds=False):
+    def predict(self, x, confounds, extra_var=[], skip_confounds=False, recurrent=False):
 
         if skip_confounds:
             xw = x[0]
@@ -198,6 +205,9 @@ class SBP:
             all_var_s2 = xw2
 
         ### prediction model
+        #if recurrent:
+            # return self.tlp_recurrent.predict(all_var, all_var_s2)
+        #else:
         return self.tlp.predict(all_var, all_var_s2)
 
     def _score(self, y, res):
@@ -208,13 +218,13 @@ class SBP:
         self.res = np.hstack((y[:, np.newaxis], res))
         self.scores = (accuracy_score(y, l1_y_pred), left_cases, right_cases)
 
-    def score_files(self, files_path, subjects_id_list, confounds, y, extra_var=[]):
-        res = self.predict_files(files_path, subjects_id_list, confounds, extra_var)
+    def score_files(self, files_path, subjects_id_list, confounds, y, extra_var=[], recurrent=False):
+        res = self.predict_files(files_path, subjects_id_list, confounds, extra_var, recurrent=recurrent)
         self._score(y, res)
         return self.scores
 
-    def score(self, x, confounds, y, extra_var=[]):
-        res = self.predict(x, confounds, extra_var)
+    def score(self, x, confounds, y, extra_var=[], recurrent=False):
+        res = self.predict(x, confounds, extra_var, recurrent=recurrent)
         self._score(y, res)
         return self.scores
 

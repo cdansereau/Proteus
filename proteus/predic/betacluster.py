@@ -6,8 +6,6 @@ import pandas as pd
 import clustering as cls
 from sklearn import linear_model
 import numpy as np
-import prediction
-from sklearn import cross_validation
 from proteus.predic import stability 
 
 
@@ -54,12 +52,6 @@ class BetaCluster:
             bc_x = self.bc_transform(x)
             self.selectidx = stability.getkBest(bc_x,y,k_feature)
 
-
-        # Training and prediction
-        #skf = cross_validation.StratifiedKFold(y, n_folds=10)
-        #score = prediction.basicconn(skf, x_subf, y)
-        #print score
-        #prediction.multisplit(skf, vec_features.values, y)
 
     def bc_transform(self,x):
         # average resulting new partition

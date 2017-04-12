@@ -1,10 +1,8 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-from sklearn import cross_validation
-#import predlib as plib
 from mvpa2.datasets import *
-from sklearn.cross_validation import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold
 from mvpa2.measures import irelief as irelief_mvpa
 
 def modelpred(x,y):
@@ -22,7 +20,7 @@ def modelpred(x,y):
 
     # grid search and SVM
     clf = get_opt_model(x_scaled[:,candidat_f],y)
-    #clf = svm.SVC(kernel='rbf', class_weight='auto')
+    #clf = svm.SVC(kernel='rbf', class_weight='balanced')
     #clf = plib.grid_search(clf, x_scaled[:,candidat_f], y, n_folds=10, verbose=True)
     #clf.fit(x_scaled[:,candidat_f],y)
     #clf = plib.classif(x_scaled[:,candidat_f],y)
@@ -39,7 +37,7 @@ def get_opt_model_features_nbest(x,y,w):
 
         # grid search and SVM
         candidat_f = fselect.nBest(w,i)
-        clf = svm.SVC(kernel='linear', class_weight='auto')
+        clf = svm.SVC(kernel='linear', class_weight='balanced')
         clf.probability = True
         clf, score = plib.grid_search(clf, x[:,candidat_f], y, n_folds=10, verbose=False)
         #print score
@@ -65,7 +63,7 @@ def get_opt_model_features_std(x,y,w,std_step=0.25):
         candidat_f = fselect.threhold_std(w,i)
         print candidat_f.shape
         if len(candidat_f)>0:
-            clf = svm.SVC(kernel='linear', class_weight='auto',C=0.01)
+            clf = svm.SVC(kernel='linear', class_weight='balanced',C=0.01)
             clf.probability = True
             clf, score = plib.grid_search(clf, x[:,candidat_f], y, n_folds=10, verbose=False)
             #print score
@@ -95,7 +93,7 @@ def get_opt_model_features_std_sv(x,y,w,alpha=0.8):
         # grid search and SVM
         candidat_f = fselect.threhold_std(w,i)
         if len(candidat_f)>0:
-            clf = svm.SVC(kernel='linear', class_weight='auto')
+            clf = svm.SVC(kernel='linear', class_weight='balanced')
             clf.probability = True
             clf, score = plib.grid_search(clf, x[:,candidat_f], y, n_folds=10, verbose=False)
             #print score

@@ -1,16 +1,10 @@
 #!/usr/bin/python
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.feature_selection import chi2
-from sklearn.feature_selection import SelectFpr
-from sklearn.feature_selection import SelectKBest
-from sklearn.feature_selection import f_classif
-from sklearn import cross_validation
-from sklearn.cross_validation import StratifiedKFold, KFold
+from sklearn.model_selection import StratifiedKFold,LeaveOneOut
 from sklearn import preprocessing
-from sklearn.lda import LDA
+
 from sklearn import svm
-from sklearn.grid_search import GridSearchCV
+from sklearn.model_selection import GridSearchCV
 
 from collections import Counter
 from sklearn.metrics import accuracy_score
@@ -78,9 +72,9 @@ def grid_search(clf, x, y, n_folds=10, verbose=True, detailed=False):
                 param_grid = dict(C=C_range)
 
             if n_folds==1:
-                cv = cross_validation.LeaveOneOut(len(y))
+                cv = LeaveOneOut()
             else:
-                cv = StratifiedKFold(y=y, n_folds=n_folds)
+                cv = StratifiedKFold(n_splits=n_folds)
             #cv = cross_validation.LeaveOneOut(len(y))
             #grid = GridSearchCV(clf, param_grid=param_grid, cv=cv, n_jobs=-1, scoring='f1')
             grid = GridSearchCV(clf, param_grid=param_grid, cv=cv, n_jobs=-1)
@@ -113,8 +107,8 @@ class classif:
         #clf.feature_importances_
         # SVM
         #self.clf = LDA()
-        #self.clf = svm.LinearSVC(class_weight='auto')
-        self.clf = svm.SVC(kernel='rbf', class_weight='auto')
+        #self.clf = svm.LinearSVC(class_weight='balanced')
+        self.clf = svm.SVC(kernel='rbf', class_weight='balanced')
         self.clf = grid_search(self.clf, self.scaler.transform(x),y)
         self.clf.fit(self.scaler.transform(x), y)
     
