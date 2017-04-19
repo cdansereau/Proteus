@@ -38,8 +38,8 @@ def mat2vec(m, include_diag=False):
     return m[inddown]
 
 
-@jit
-def vec2mat(vec, val_diag=1., include_diag=False):
+#@jit
+def vec2mat(vec, val_diag=0., include_diag=False):
     if vec.ndim > 1:
         vec = vec[:, 0]
     M = len(vec)
