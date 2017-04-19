@@ -1,7 +1,6 @@
 __author__ = 'Christian Dansereau'
 
 import numpy as np
-import math
 import copy
 from numba import jit
 import math
@@ -40,7 +39,7 @@ def mat2vec(m, include_diag=False):
 
 
 @jit
-def vec2mat(vec, val_diag=1, include_diag=False):
+def vec2mat(vec, val_diag=1., include_diag=False):
     if vec.ndim > 1:
         vec = vec[:, 0]
     M = len(vec)
