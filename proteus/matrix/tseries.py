@@ -26,7 +26,7 @@ def vol2vec(vol):
     return vec_vol
 
 
-@jit
+#@jit
 def mat2vec(m, include_diag=False):
     # Hack to be compatible with matlab column-wise instead of row-wise
     if include_diag:
