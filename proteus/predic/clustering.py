@@ -82,7 +82,7 @@ def order(ind):
         order_idx = order_idx + np.where(l)[0].tolist()
     #tmp_ind = ind.copy()
     #return tmp_ind.sort()
-    return order_idx
+    return np.array(order_idx)
 
 def ordermat(m,ind):
     order_idx = order(ind)
