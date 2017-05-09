@@ -79,8 +79,9 @@ def vec2vol(vec, part):
         # this is a multi partition
         vol = np.zeros(part.shape)
         for idx in range(0, len(vec)):
-            idxs = np.where(part == (idx + 1))
-            vol[idxs] = vec[idx]
+            #idxs = np.where(part == (idx + 1))
+            mask = (part == (idx + 1))
+            vol[mask] = vec[idx]
 
     return vol
 
