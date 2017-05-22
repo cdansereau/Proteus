@@ -219,7 +219,7 @@ class clusteringST:
         # net_data_low = self.scalers[-1].fit_transform(net_data_low_)
         self.normalized_net_template.append(np.mean(net_data_low, axis=0))
         # self.normalized_net_template.append(np.zeros_like(net_data_low[0,:]))
-        # indentity matrix of the corelation between subjects
+        # identity matrix of the correlation between subjects
         ind_st = cls.hclustering(net_data_low, nSubtypes)
 
         for j in range(nSubtypes):
