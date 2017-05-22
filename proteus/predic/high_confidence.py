@@ -259,14 +259,14 @@ class TwoStagesPrediction(object):
         print('Stage 1')
         x_ = self.scaler_s1.fit_transform(x)
         self.basemodel.fit(x_, y)
-        proba = self._shuffle_hm(x_, y)
+        self.training_hit_probability = self._shuffle_hm(x_, y)
 
         # Learn the hit probability
         self.hitproba = HitProbability()
-        self.hitproba.fit(x_, proba)
+        self.hitproba.fit(x_, self.training_hit_probability)
 
         # Learn high confidence for all classes
-        hm_y, auto_gamma = self._adjust_gamma(proba)
+        hm_y, auto_gamma = self._adjust_gamma(self.training_hit_probability)
         self.joint_class_hc = HC_LR()
         self.joint_class_hc.fit(x_, hm_y)
 
@@ -275,7 +275,7 @@ class TwoStagesPrediction(object):
 
         print('Stage 2')
         # Stage 2
-        hm_1hot = self._one_hot(proba, y)
+        hm_1hot = self._one_hot(self.training_hit_probability, y)
 
         # Train stage2
         x2_ = self.scaler_s2.fit_transform(x2)
