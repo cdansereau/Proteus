@@ -155,9 +155,19 @@ class SBP:
             self.st_crm.append([crm, st, st_s2])
             del x_dyn
 
+        if self.verbose: print("Subtype extraction, Time elapsed: {}s)".format(int(time.time() - start)))
+
+
+    def fit_files(self, files_path, subjects_id_list, confounds, y, n_seeds, extra_var=[], skip_st_training=False):
+        '''
+        use a list of subject IDs and search for them in the path, grab the results per network
+        '''
+        if skip_st_training == False:
+            self.fit_files_st(files_path, subjects_id_list, confounds, files_path, subjects_id_list, confounds, y, n_seeds,
+                              extra_var)
+
         # compute the W
         xw, xw2 = self.get_w_files(files_path, subjects_id_list, confounds)
-        if self.verbose: print("Subtype extraction, Time elapsed: {}s)".format(int(time.time() - start)))
 
         ### Include extra covariates
         if len(extra_var) != 0:
@@ -169,20 +179,13 @@ class SBP:
 
         ### prediction model
         if self.verbose: start = time.time()
-        #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
+        # self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
         self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         # self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         self.tlp.fit(all_var, all_var_s2, y)
         # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
-
-    def fit_files(self, files_path, subjects_id_list, confounds, y, n_seeds, extra_var=[]):
-        '''
-        use a list of subject IDs and search for them in the path, grab the results per network
-        '''
-        self.fit_files_st(files_path, subjects_id_list, confounds, files_path, subjects_id_list, confounds, y, n_seeds,
-                          extra_var)
 
     def predict_files(self, files_path, subjects_id_list, confounds, extra_var=[], recurrent=False):
         xw, xw2 = self.get_w_files(files_path, subjects_id_list, confounds)
@@ -208,7 +211,8 @@ class SBP:
         #if recurrent:
             # return self.tlp_recurrent.predict(all_var, all_var_s2)
         #else:
-        return self.tlp.predict(all_var, all_var_s2)
+        data_array, dict_array = self.tlp.predict(all_var, all_var_s2)
+        return data_array
 
     def _score(self, y, res):
         l1_y_pred = (res[:, 0] > 0).astype(int)
