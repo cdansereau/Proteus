@@ -29,7 +29,8 @@ class BaseSvc(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = SVC(C=1., cache_size=500, kernel='linear', class_weight='balanced', probability=False, decision_function_shape='ovr')
+        clf = SVC(C=1., cache_size=500, kernel='linear', class_weight='balanced', probability=False,
+                  decision_function_shape='ovr')
         self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
@@ -89,6 +90,7 @@ class ConfidenceLR(object):
     def __init__(self, scoring_metric='f1_weighted', param_grid=dict(C=(np.logspace(-0.2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
+        self.t = []
 
     def _fit_branchmodel(self, xwl2, hm_y):
         clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300)
@@ -104,16 +106,29 @@ class ConfidenceLR(object):
 
     def fit(self, x, hm_1hot):
         self.clfs = []
+        #k = 0
         for hm in hm_1hot:
             self.clfs.append(self._fit_branchmodel(x, hm))
+            #hm_proba = self.clfs[-1].predict_proba(x)[:, k]
+
+            #t = 0.5
+            #while np.mean(hm[hm_proba > t]) < 1:
+            #    t += 0.001
+            #self.t.append(t)
+            #k += 1
 
     def decision_function(self, x):
         if getattr(self, 'clfs', None) == None:
             print('The model was not fit before prediction')
             return None
         df = []
+        #k = 0
         for clf in self.clfs:
-            df.append(clf.decision_function(x))
+            tmp_df = np.array(clf.decision_function(x))
+            #hm_proba = self.clfs[k].predict_proba(x)[:, k]
+            #tmp_df[hm_proba > self.t[k]] = -tmp_df[hm_proba > self.t[k]]
+            df.append(tmp_df)
+            #k += 1
 
         return np.stack(df).T
 
@@ -184,8 +199,6 @@ class HC_LR(object):
         return self.clf.predict_proba(x)
 
 
-
-
 class HitProbability(object):
     def __init__(self, scoring_metric='r2', param_grid=dict(C=(np.logspace(-0.1, 0.1, 15)))):
         self.scoring_metric = scoring_metric
@@ -213,7 +226,7 @@ class TwoStagesPrediction(object):
     """
 
     def __init__(self, verbose=True, basemodel=[], confidencemodel=[], gamma=1., n_iter=100, min_gamma=0.8,
-                 thresh_ratio=0.1, shuffle_test_split=0.2):
+                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True):
         self.verbose = verbose
         self.gamma = gamma
         self.n_iter = n_iter
@@ -222,6 +235,7 @@ class TwoStagesPrediction(object):
         self.min_gamma = min_gamma
         self.thresh_ratio = thresh_ratio
         self.shuffle_test_split = shuffle_test_split
+        self.gamma_auto_adjust = gamma_auto_adjust
         if basemodel == []:
             self.basemodel = BaseSvc()
         else:
@@ -231,7 +245,7 @@ class TwoStagesPrediction(object):
         else:
             self.confidencemodel = confidencemodel
 
-    def _adjust_gamma(self, proba, thresh=[], min_gamma=[]):
+    def _adjust_gamma(self, proba, thresh=[], min_gamma=[], gamma_auto_adjust=[]):
 
         if thresh == []:
             thresh = self.thresh_ratio
@@ -239,11 +253,15 @@ class TwoStagesPrediction(object):
         if min_gamma == []:
             min_gamma = self.min_gamma
 
-        gamma = self.gamma
-        while (np.mean(proba >= gamma) <= thresh) and (gamma > min_gamma):
-            gamma = gamma - 0.01
+        if gamma_auto_adjust == []:
+            gamma_auto_adjust = self.gamma_auto_adjust
 
-        #if (np.mean(proba > gamma) <= thresh):
+        gamma = self.gamma
+        if gamma_auto_adjust:
+            while (np.mean(proba >= gamma) <= thresh) and (gamma > min_gamma):
+                gamma = gamma - 0.01
+
+        # if (np.mean(proba > gamma) <= thresh):
         #    return np.zeros_like(proba), gamma
 
         return (proba >= gamma).astype(int), gamma
@@ -284,29 +302,59 @@ class TwoStagesPrediction(object):
     def fit_recurrent(self, x, x2, y, n_modes=2):
         """
         Fit the Two stage model on the data x and x2
+        Note that this training strategy focus only on the class 1
         :param x: Input matrix of examples X features for stage 1
         :param x2: Input matrix of examples X features for stage 2
         :param y: Target labels
         :return
         """
-        print('Stage 1')
+        #print('Stage 1')
         x_ = self.scaler_s1.fit_transform(x)
+        x2_ = self.scaler_s2.fit_transform(x2)
+
         self.basemodel.fit(x_, y)
-        proba = self._shuffle_hm(x_, y)
+        self.training_hit_probability = self._shuffle_hm(x_, y)
 
         # Learn the hit probability
         self.hitproba = HitProbability()
-        self.hitproba.fit(x_, proba)
+        self.hitproba.fit(x_, self.training_hit_probability)
 
         # Learn high confidence for all classes
-        hm_y, auto_gamma = self._adjust_gamma(proba)
+        hm_y, auto_gamma = self._adjust_gamma(self.training_hit_probability)
         self.joint_class_hc = HC_LR()
         self.joint_class_hc.fit(x_, hm_y)
 
-        hm_subtypes = []
-        proba_subtypes = []
+        #hm_subtypes = []
+        #proba_subtypes = []
 
         # while np.mean(y_) > 0.01:
+        #for label in np.unique(y):
+        y_ = y.copy()
+
+        self.recurrent_base = []
+        self.recurrent_hpc = []
+        for ii in range(n_modes):
+            print('Stage 1 iter: ' + str(ii))
+            self.recurrent_base.append(BaseSvc())
+            self.basemodel = self.recurrent_base[-1]
+            hm_y, proba_tmp = self._fit_mode(x_, y_)
+            # if np.sum(hm_y) == 0:
+            #    break
+            #hm_subtypes.append(hm_y)
+            #proba_subtypes.append(proba_tmp)
+
+            print('Stage 2')
+            # Stage 2
+            hm_1hot = hm_y
+            # train stage2
+
+            self.confidencemodel.fit(x2_, hm_1hot)
+
+            # remove the selected subgroup from the target list
+            y_[hm_y == 1] = 0
+
+
+        '''
         for label in np.unique(y):
             y_ = y.copy()
             y_ = (y_ == label).astype(int)
@@ -325,6 +373,7 @@ class TwoStagesPrediction(object):
 
                 # remove the selected subgroup from the target list
                 y_[hm_y == 1] = 0
+        '''
 
         print('Stage 2')
         # Stage 2
@@ -339,7 +388,7 @@ class TwoStagesPrediction(object):
         mask_ = y == 1
         proba_tmp = proba.copy()
         proba_tmp[~mask_] = 0
-        hm_y, auto_gamma = self._adjust_gamma(proba_tmp, thresh=0.1, min_gamma=0.4)
+        hm_y, auto_gamma = self._adjust_gamma(proba_tmp)#, thresh=0.1, min_gamma=0.4)
         proba_tmp[hm_y != 1] = 0
 
         return hm_y, proba_tmp
@@ -362,6 +411,61 @@ class TwoStagesPrediction(object):
                 print('Adjusted gamma: ', str(auto_gamma))
             hm_1hot.append(hm_y)
         return hm_1hot
+
+    def predict_recurrent(self, x, x2):
+        """
+        Predict labels for the given examples
+        :param x: Input matrix of examples X features for stage 1
+        :param x2: Input matrix of examples X features for stage 2
+        :return: examples X [labels_stage1, merge_confidence_decision, decision_function_class0, decision_function_class1, ...]
+        """
+        x_ = self.scaler_s1.transform(x)
+        x2_ = self.scaler_s2.transform(x2)
+
+        for ii in range(len(self.recurrent_base)):
+            print('Stage 1 iter: ' + str(ii))
+            self.basemodel = self.recurrent_base[ii]
+            self.confidencemodel = self.recurrent_hpc[ii]
+            y_df1 = self.basemodel.decision_function(x_)
+            dfs = self.confidencemodel.decision_function(x2_)
+
+
+        hc_df = -np.ones((dfs.shape[0], 1))
+        y_pred1 = self.basemodel.predict(x_)
+
+        unique_labels = range(dfs.shape[1])
+        for label in unique_labels:
+            hc_df[y_pred1 == label, :] = dfs[y_pred1 == label, label][:, np.newaxis]
+
+        hit_proba_estimate = self.hitproba.predict(x_)
+        joint_hc = self.joint_class_hc.predict(x_)
+
+        data_array = []
+        dict_array = []
+        if len(joint_hc.shape):
+
+            dict_array = {'s1df': y_df1[:, np.newaxis],
+                          'hcdf': hc_df,
+                          's2df': dfs,
+                          'hitproba': hit_proba_estimate[:, np.newaxis],
+                          'hcjoint': joint_hc[:, np.newaxis]
+                          }
+            data_array = np.hstack(
+                # [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
+                [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
+            # [y_df1[:, np.newaxis], hc_labels[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
+        else:
+            # multiclass
+            data_array = np.hstack([y_df1, hc_df, dfs, hit_proba_estimate, joint_hc])
+            dict_array = {'s1df': y_df1,
+                          'hcdf': hc_df,
+                          's2df': dfs,
+                          'hitproba': hit_proba_estimate,
+                          'hcjoint': joint_hc
+                          }
+
+        return data_array, dict_array
+
 
     def predict(self, x, x2):
         """
@@ -407,16 +511,16 @@ class TwoStagesPrediction(object):
         dict_array = []
         if len(joint_hc.shape):
 
-            dict_array = {'s1df':y_df1[:, np.newaxis],
-                          'hcdf':hc_df,
-                          's2df':dfs,
-                          'hitproba':hit_proba_estimate[:, np.newaxis],
-                          'hcjoint':joint_hc[:, np.newaxis]
+            dict_array = {'s1df': y_df1[:, np.newaxis],
+                          'hcdf': hc_df,
+                          's2df': dfs,
+                          'hitproba': hit_proba_estimate[:, np.newaxis],
+                          'hcjoint': joint_hc[:, np.newaxis]
                           }
             data_array = np.hstack(
-                #[y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
+                # [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
                 [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
-                #[y_df1[:, np.newaxis], hc_labels[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
+            # [y_df1[:, np.newaxis], hc_labels[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
         else:
             # multiclass
             data_array = np.hstack([y_df1, hc_df, dfs, hit_proba_estimate, joint_hc])
@@ -440,7 +544,6 @@ class TwoStagesPrediction(object):
         hm = np.zeros_like(y).astype(float)
         skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
 
-
         for train, test in skf.split(x, y):
             # rnd_proba = np.abs(np.random.randn(len(train))*5.+1.)
             # rnd_proba[train==0] = 1.
@@ -451,8 +554,8 @@ class TwoStagesPrediction(object):
 
         proba = hm / hm_count
         if self.verbose:
-            #print('H/M count:')
-            #print(hm_count)
+            # print('H/M count:')
+            # print(hm_count)
             print('Proba:')
             print(proba)
         self.basemodel.fit(x, y, hyperparams_optim=False)
