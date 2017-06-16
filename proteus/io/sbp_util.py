@@ -68,9 +68,9 @@ def dynamic_rmaps(data_, partition, voxel_mask, window=20, gs=False):
         cf_rm = prediction.ConfoundsRm(data_[voxel_mask].mean(0).reshape(-1, 1), data_[voxel_mask].T, intercept=False)
         data[voxel_mask] = cf_rm.transform(data_[voxel_mask].mean(0).reshape(-1, 1), data_[voxel_mask].T).T
 
-    n_iter = int(data.shape[-1] / (window / 2.)) - 1
     dynamic_data = []
     if window > 0:
+        n_iter = int(data.shape[-1] / (window / 2.)) - 1
         for widx in range(n_iter):
             dynamic_data.append(
                 prediction.get_corrvox(data[..., widx * (window / 2):(widx + 1) * window], voxel_mask, partition))

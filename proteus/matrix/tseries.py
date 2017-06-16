@@ -39,6 +39,35 @@ def mat2vec(m, include_diag=False):
 
 
 #@jit
+'''
+def vec2mat(vec, val_diag=0., include_diag=False, style='python'):
+    if include_diag:
+        N = int(round((-1 + math.sqrt(1 + 8 * len(vec))) / 2))
+        mask_u = np.ones((N, N))
+        mask_u = np.triu(mask_u, 0).astype(bool)
+        b = np.ones((N, N))
+    else:
+        N = int(round((1 + math.sqrt(1 + 8 * len(vec))) / 2))
+        mask_u = np.ones((N, N))
+        mask_u = np.triu(mask_u, 1).astype(bool)
+        b = np.ones((N, N)) * val_diag
+
+    mask_nodiag = np.triu(np.ones((N, N)), 1).astype(bool)
+
+    if style == 'matlab':
+        # need to re index the values to the C order instead of F
+        a = np.ones((N, N)).astype(int)
+        a[np.tril(a, -1).astype(bool)] = np.arange(0, len(vec)).astype(int)
+        new_vec = vec[a.T[mask_u]]
+        b[mask_u] = new_vec
+    else:
+        b[mask_u] = vec
+
+    # map to the lower triangle
+    b.T[mask_nodiag] = b[mask_nodiag]
+
+    return b
+'''
 def vec2mat(vec, val_diag=0., include_diag=False):
     if vec.ndim > 1:
         vec = vec[:, 0]
@@ -77,7 +106,7 @@ def vec2vol(vec, part):
         vol[part] = vec
     else:
         # this is a multi partition
-        vol = np.zeros(part.shape)
+        vol = np.zeros_like(part)
         for idx in range(0, len(vec)):
             #idxs = np.where(part == (idx + 1))
             mask = (part == (idx + 1))

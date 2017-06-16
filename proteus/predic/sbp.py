@@ -30,7 +30,7 @@ class SBP:
 
     def __init__(self, verbose=True, dynamic=True, stage1_model_type='svm', nSubtypes=7,
                  nSubtypes_stage2=0, mask_part=[], stage1_metric='accuracy', stage2_metric='f1_weighted',
-                 s2_branches=True, min_gamma=0.8, thresh_ratio=0.1, gamma=1.):
+                 s2_branches=True, min_gamma=0.8, thresh_ratio=0.1, n_iter=100, shuffle_test_split=0.2, gamma=1., gamma_auto_adjust=True, flag_recurrent=False):
         self.verbose = verbose
         self.dynamic = dynamic
         self.gamma = gamma
@@ -42,6 +42,10 @@ class SBP:
         self.stage1_metric = stage1_metric
         self.stage2_metric = stage2_metric
         self.s2_branches = s2_branches
+        self.n_iter = n_iter
+        self.shuffle_test_split = shuffle_test_split
+        self.gamma_auto_adjust = gamma_auto_adjust
+        self.flag_recurrent = flag_recurrent
 
         if nSubtypes_stage2 == 0:
             self.nSubtypes_stage2 = self.nSubtypes
@@ -112,7 +116,7 @@ class SBP:
         #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric,
         #                               s2_branches=self.s2_branches)
-        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust)
         #self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         self.tlp.fit(all_var, all_var_s2, y)
         # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
@@ -181,10 +185,13 @@ class SBP:
         if self.verbose: start = time.time()
         # self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
-        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust)
         # self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
-        self.tlp.fit(all_var, all_var_s2, y)
-        # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
+        if self.flag_recurrent:
+            self.tlp.fit_recurrent(all_var, all_var_s2, y)
+        else:
+            self.tlp.fit(all_var, all_var_s2, y)
+
         if self.verbose: print("Two Levels prediction, Time elapsed: {}s)".format(int(time.time() - start)))
 
     def predict_files(self, files_path, subjects_id_list, confounds, extra_var=[], recurrent=False):
@@ -275,11 +282,11 @@ class nullClassifier():
     def decision_function(self, x):
         return -np.ones_like(x[:, 0])
 
-
+'''
 class TwoLevelsPrediction:
-    '''
-    2 Level prediction
-    '''
+
+    #2 Level prediction
+
 
     def __init__(self, verbose=True, stage1_model_type='svm', gamma=0.999, stage1_metric='accuracy',
                  stage2_metric='f1_weighted', s2_branches=True):
@@ -349,32 +356,6 @@ class TwoLevelsPrediction:
         param_grid = dict(C=(np.logspace(-.2, 1, 15)))
 
         # 2 levels balancing 
-        '''
-        new_classes = np.zeros_like(y)
-        new_classes[(y==0) & (hm_y==0)]=0
-        new_classes[(y==1) & (hm_y==0)]=1
-        new_classes[(y==0) & (hm_y==1)]=2
-        new_classes[(y==1) & (hm_y==1)]=3
-
-        tmp_samp_w = len(new_classes) / (len(np.unique(new_classes))*1. * np.bincount(new_classes))
-        tmp_samp_w = (1.*(tmp_samp_w/tmp_samp_w.sum()))
-        sample_w = new_classes.copy().astype(float)
-        sample_w[new_classes==0] = tmp_samp_w[0]
-        sample_w[new_classes==1] = tmp_samp_w[1]
-        sample_w[new_classes==2] = tmp_samp_w[2]
-        sample_w[new_classes==3] = tmp_samp_w[3]
-        '''
-        '''
-        new_classes = np.zeros_like(y)
-        new_classes[(y==0) ]=0
-        new_classes[(y==1) ]=1
-
-        tmp_samp_w = len(new_classes) / (len(np.unique(new_classes))*1. * np.bincount(new_classes))
-        #tmp_samp_w = (1.*(tmp_samp_w/tmp_samp_w.sum()))
-        sample_w = new_classes.copy().astype(float)
-        sample_w[new_classes==0] = tmp_samp_w[0]
-        sample_w[new_classes==1] = tmp_samp_w[1]
-        '''
 
         gridclf = GridSearchCV(clf2, param_grid=param_grid,
                                cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
@@ -483,3 +464,4 @@ class TwoLevelsPrediction:
         # self.clf1.coef_ = np.stack(coefs_).mean(0)
         self.clf1.fit(x, y)
         return (proba >= gamma).astype(int), proba
+'''

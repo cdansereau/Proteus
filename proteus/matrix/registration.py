@@ -189,7 +189,7 @@ def coreg(vols, affine, ref='median'):
 
     return coreg_vols, transf, motion_params
 
-def fit(source, v2w_source, target, v2w_target, mask = [], verbose = False, stride=2,dowsamp_flag=True):
+def fit(source, v2w_source, target, v2w_target, mask = [], verbose = False, stride=2,dowsamp_flag=False):
     # TODO add initialization params for each frame based on the precedent param
     # TODO change size of the target matrix for faster evaluation
     coreg_vols    = []
