@@ -12,6 +12,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
+import copy
 
 
 class nullClassifier(object):
@@ -29,14 +30,14 @@ class BaseSvc(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = SVC(C=1., cache_size=500, kernel='linear', class_weight='balanced', probability=False,
+        self.clf = SVC(C=1., cache_size=500, kernel='linear', class_weight='balanced', probability=False,
                   decision_function_shape='ovr')
-        self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
+        self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
 
     def fit(self, x, y, hyperparams_optim=True):
-        if hyperparams_optim:
+        if hyperparams_optim & (np.sum(y) > 2):
             self.gridclf.fit(x, y)
             self.clf = self.gridclf.best_estimator_
             self.gridclf.cv_results_ = None
@@ -98,7 +99,7 @@ class ConfidenceLR(object):
                                cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                scoring=self.scoring_metric)
         # train
-        if len(np.unique(hm_y)) > 1:
+        if (len(np.unique(hm_y)) > 1) & (np.sum(hm_y) >= 2):
             gridclf.fit(xwl2, hm_y)
             return gridclf.best_estimator_
         else:
@@ -106,29 +107,29 @@ class ConfidenceLR(object):
 
     def fit(self, x, hm_1hot):
         self.clfs = []
-        #k = 0
+        # k = 0
         for hm in hm_1hot:
             self.clfs.append(self._fit_branchmodel(x, hm))
-            #hm_proba = self.clfs[-1].predict_proba(x)[:, k]
+            # hm_proba = self.clfs[-1].predict_proba(x)[:, k]
 
-            #t = 0.5
-            #while np.mean(hm[hm_proba > t]) < 1:
+            # t = 0.5
+            # while np.mean(hm[hm_proba > t]) < 1:
             #    t += 0.001
-            #self.t.append(t)
-            #k += 1
+            # self.t.append(t)
+            # k += 1
 
     def decision_function(self, x):
         if getattr(self, 'clfs', None) == None:
             print('The model was not fit before prediction')
             return None
         df = []
-        #k = 0
+        # k = 0
         for clf in self.clfs:
             tmp_df = np.array(clf.decision_function(x))
-            #hm_proba = self.clfs[k].predict_proba(x)[:, k]
-            #tmp_df[hm_proba > self.t[k]] = -tmp_df[hm_proba > self.t[k]]
+            # hm_proba = self.clfs[k].predict_proba(x)[:, k]
+            # tmp_df[hm_proba > self.t[k]] = -tmp_df[hm_proba > self.t[k]]
             df.append(tmp_df)
-            #k += 1
+            # k += 1
 
         return np.stack(df).T
 
@@ -226,7 +227,7 @@ class TwoStagesPrediction(object):
     """
 
     def __init__(self, verbose=True, basemodel=[], confidencemodel=[], gamma=1., n_iter=100, min_gamma=0.8,
-                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True):
+                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True, recurrent_modes=3):
         self.verbose = verbose
         self.gamma = gamma
         self.n_iter = n_iter
@@ -236,6 +237,7 @@ class TwoStagesPrediction(object):
         self.thresh_ratio = thresh_ratio
         self.shuffle_test_split = shuffle_test_split
         self.gamma_auto_adjust = gamma_auto_adjust
+        self.recurrent_modes = recurrent_modes
         if basemodel == []:
             self.basemodel = BaseSvc()
         else:
@@ -299,7 +301,7 @@ class TwoStagesPrediction(object):
         x2_ = self.scaler_s2.fit_transform(x2)
         self.confidencemodel.fit(x2_, hm_1hot)
 
-    def fit_recurrent(self, x, x2, y, n_modes=2):
+    def fit_recurrent(self, x, x2, y):
         """
         Fit the Two stage model on the data x and x2
         Note that this training strategy focus only on the class 1
@@ -308,7 +310,7 @@ class TwoStagesPrediction(object):
         :param y: Target labels
         :return
         """
-        #print('Stage 1')
+        # print('Stage 1')
         x_ = self.scaler_s1.fit_transform(x)
         x2_ = self.scaler_s2.fit_transform(x2)
 
@@ -324,60 +326,43 @@ class TwoStagesPrediction(object):
         self.joint_class_hc = HC_LR()
         self.joint_class_hc.fit(x_, hm_y)
 
-        #hm_subtypes = []
-        #proba_subtypes = []
+        # hm_subtypes = []
+        # proba_subtypes = []
 
         # while np.mean(y_) > 0.01:
-        #for label in np.unique(y):
+        # for label in np.unique(y):
+
+        hm_1hot = []
+        hm_1hot.append(self._one_hot(self.training_hit_probability, y)[0])
         y_ = y.copy()
 
         self.recurrent_base = []
         self.recurrent_hpc = []
-        for ii in range(n_modes):
+        for ii in range(self.recurrent_modes):
             print('Stage 1 iter: ' + str(ii))
             self.recurrent_base.append(BaseSvc())
-            self.basemodel = self.recurrent_base[-1]
-            hm_y, proba_tmp = self._fit_mode(x_, y_)
-            # if np.sum(hm_y) == 0:
-            #    break
-            #hm_subtypes.append(hm_y)
-            #proba_subtypes.append(proba_tmp)
 
-            print('Stage 2')
-            # Stage 2
-            hm_1hot = hm_y
-            # train stage2
+            if np.sum(y_) > 2:
+                self.basemodel = BaseSvc()
+                hm_y, proba_tmp = self._fit_mode(x_, y_)
+                hm_candidate = self._one_hot(proba_tmp, y_)[1]
+            else:
+                hm_candidate = np.zeros_like(y_)
 
-            self.confidencemodel.fit(x2_, hm_1hot)
+            self.recurrent_base.append(self.basemodel)
+
+            #if np.sum(hm_candidate) >= 2:
+            hm_1hot.append(hm_candidate)
 
             # remove the selected subgroup from the target list
-            y_[hm_y == 1] = 0
+            y_[hm_1hot[-1] == 1] = 0
 
-
-        '''
-        for label in np.unique(y):
-            y_ = y.copy()
-            y_ = (y_ == label).astype(int)
-            if label == 0:
-                n_modes_ = 1
-            else:
-                n_modes_ = n_modes
-
-            for ii in range(n_modes_):
-                print('Stage 1 iter: ' + str(ii))
-                hm_y, proba_tmp = self._fit_mode(x_, y_)
-                # if np.sum(hm_y) == 0:
-                #    break
-                hm_subtypes.append(hm_y)
-                proba_subtypes.append(proba_tmp)
-
-                # remove the selected subgroup from the target list
-                y_[hm_y == 1] = 0
-        '''
+        # make the default base model the first
+        self.basemodel = self.recurrent_base[0]
 
         print('Stage 2')
         # Stage 2
-        hm_1hot = hm_subtypes
+        # hm_1hot = hm_subtypes
         # train stage2
         x2_ = self.scaler_s2.fit_transform(x2)
         self.confidencemodel.fit(x2_, hm_1hot)
@@ -388,7 +373,7 @@ class TwoStagesPrediction(object):
         mask_ = y == 1
         proba_tmp = proba.copy()
         proba_tmp[~mask_] = 0
-        hm_y, auto_gamma = self._adjust_gamma(proba_tmp)#, thresh=0.1, min_gamma=0.4)
+        hm_y, auto_gamma = self._adjust_gamma(proba_tmp)  # , thresh=0.1, min_gamma=0.4)
         proba_tmp[hm_y != 1] = 0
 
         return hm_y, proba_tmp
@@ -411,61 +396,6 @@ class TwoStagesPrediction(object):
                 print('Adjusted gamma: ', str(auto_gamma))
             hm_1hot.append(hm_y)
         return hm_1hot
-
-    def predict_recurrent(self, x, x2):
-        """
-        Predict labels for the given examples
-        :param x: Input matrix of examples X features for stage 1
-        :param x2: Input matrix of examples X features for stage 2
-        :return: examples X [labels_stage1, merge_confidence_decision, decision_function_class0, decision_function_class1, ...]
-        """
-        x_ = self.scaler_s1.transform(x)
-        x2_ = self.scaler_s2.transform(x2)
-
-        for ii in range(len(self.recurrent_base)):
-            print('Stage 1 iter: ' + str(ii))
-            self.basemodel = self.recurrent_base[ii]
-            self.confidencemodel = self.recurrent_hpc[ii]
-            y_df1 = self.basemodel.decision_function(x_)
-            dfs = self.confidencemodel.decision_function(x2_)
-
-
-        hc_df = -np.ones((dfs.shape[0], 1))
-        y_pred1 = self.basemodel.predict(x_)
-
-        unique_labels = range(dfs.shape[1])
-        for label in unique_labels:
-            hc_df[y_pred1 == label, :] = dfs[y_pred1 == label, label][:, np.newaxis]
-
-        hit_proba_estimate = self.hitproba.predict(x_)
-        joint_hc = self.joint_class_hc.predict(x_)
-
-        data_array = []
-        dict_array = []
-        if len(joint_hc.shape):
-
-            dict_array = {'s1df': y_df1[:, np.newaxis],
-                          'hcdf': hc_df,
-                          's2df': dfs,
-                          'hitproba': hit_proba_estimate[:, np.newaxis],
-                          'hcjoint': joint_hc[:, np.newaxis]
-                          }
-            data_array = np.hstack(
-                # [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
-                [y_df1[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
-            # [y_df1[:, np.newaxis], hc_labels[:, np.newaxis], hc_df, dfs, hit_proba_estimate[:, np.newaxis], joint_hc[:, np.newaxis]])
-        else:
-            # multiclass
-            data_array = np.hstack([y_df1, hc_df, dfs, hit_proba_estimate, joint_hc])
-            dict_array = {'s1df': y_df1,
-                          'hcdf': hc_df,
-                          's2df': dfs,
-                          'hitproba': hit_proba_estimate,
-                          'hcjoint': joint_hc
-                          }
-
-        return data_array, dict_array
-
 
     def predict(self, x, x2):
         """
