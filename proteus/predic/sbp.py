@@ -30,7 +30,8 @@ class SBP:
 
     def __init__(self, verbose=True, dynamic=True, stage1_model_type='svm', nSubtypes=7,
                  nSubtypes_stage2=0, mask_part=[], stage1_metric='accuracy', stage2_metric='f1_weighted',
-                 s2_branches=True, min_gamma=0.8, thresh_ratio=0.1, n_iter=100, shuffle_test_split=0.2, gamma=1., gamma_auto_adjust=True, flag_recurrent=False):
+                 s2_branches=True, min_gamma=0.8, thresh_ratio=0.1, n_iter=100, shuffle_test_split=0.2, gamma=1.,
+                 gamma_auto_adjust=True, flag_recurrent=False, recurrent_modes=3):
         self.verbose = verbose
         self.dynamic = dynamic
         self.gamma = gamma
@@ -46,6 +47,7 @@ class SBP:
         self.shuffle_test_split = shuffle_test_split
         self.gamma_auto_adjust = gamma_auto_adjust
         self.flag_recurrent = flag_recurrent
+        self.recurrent_modes = recurrent_modes
 
         if nSubtypes_stage2 == 0:
             self.nSubtypes_stage2 = self.nSubtypes
@@ -116,7 +118,7 @@ class SBP:
         #self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric,
         #                               s2_branches=self.s2_branches)
-        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust, recurrent_modes=self.recurrent_modes)
         #self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         self.tlp.fit(all_var, all_var_s2, y)
         # self.tlp_recurrent.fit_recurrent(all_var, all_var_s2, y)
@@ -185,7 +187,7 @@ class SBP:
         if self.verbose: start = time.time()
         # self.tlp = TwoLevelsPrediction(self.verbose, stage1_model_type=self.stage1_model_type, gamma=self.gamma,
         #                               stage1_metric=self.stage1_metric, stage2_metric=self.stage2_metric)
-        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust)
+        self.tlp = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma, shuffle_test_split=self.shuffle_test_split, n_iter=self.n_iter, gamma_auto_adjust=self.gamma_auto_adjust, recurrent_modes=self.recurrent_modes)
         # self.tlp_recurrent = TwoStagesPrediction(self.verbose, thresh_ratio=self.thresh_ratio, min_gamma=self.min_gamma)
         if self.flag_recurrent:
             self.tlp.fit_recurrent(all_var, all_var_s2, y)
