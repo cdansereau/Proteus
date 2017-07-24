@@ -8,9 +8,15 @@ All right reserved 2016
 import numpy as np
 from sklearn.svm import SVC, SVR
 from sklearn.linear_model import LogisticRegression
+#from sklearn.grid_search.GridSearchCV
+#from sklearn.cross_validation import StratifiedShuffleSplit, ShuffleSplit
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import scale
+
+from scipy.cluster.hierarchy import linkage
+from scipy.cluster.hierarchy import fcluster
 from sklearn.metrics import accuracy_score
 import copy
 
@@ -210,9 +216,11 @@ class HitProbability(object):
                                     scoring=self.scoring_metric)
 
     def fit(self, x, y):
-        self.gridclf.fit(x, y)
-        self.clf = self.gridclf.best_estimator_
-        self.gridclf.cv_results_ = None
+        #self.gridclf.fit(x, y)
+        #self.clf = self.gridclf.best_estimator_
+        #self.gridclf.cv_results_ = None
+
+        self.clf = nullClassifier()
 
     def predict(self, x):
         if getattr(self, 'clf', None) is None:
@@ -227,7 +235,7 @@ class TwoStagesPrediction(object):
     """
 
     def __init__(self, verbose=True, basemodel=[], confidencemodel=[], gamma=1., n_iter=100, min_gamma=0.8,
-                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True, recurrent_modes=3):
+                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True, recurrent_modes=3, hitprobability_strategy='shuffle'):
         self.verbose = verbose
         self.gamma = gamma
         self.n_iter = n_iter
@@ -238,6 +246,8 @@ class TwoStagesPrediction(object):
         self.shuffle_test_split = shuffle_test_split
         self.gamma_auto_adjust = gamma_auto_adjust
         self.recurrent_modes = recurrent_modes
+        self.hitprobability_strategy = hitprobability_strategy
+
         if basemodel == []:
             self.basemodel = BaseSvc()
         else:
@@ -279,7 +289,7 @@ class TwoStagesPrediction(object):
         print('Stage 1')
         x_ = self.scaler_s1.fit_transform(x)
         self.basemodel.fit(x_, y)
-        self.training_hit_probability = self._shuffle_hm(x_, y)
+        self.training_hit_probability = self._hitprobability(x_, y)
 
         # Learn the hit probability
         self.hitproba = HitProbability()
@@ -315,7 +325,7 @@ class TwoStagesPrediction(object):
         x2_ = self.scaler_s2.fit_transform(x2)
 
         self.basemodel.fit(x_, y)
-        self.training_hit_probability = self._shuffle_hm(x_, y)
+        self.training_hit_probability = self._hitprobability(x_, y)
 
         # Learn the hit probability
         self.hitproba = HitProbability()
@@ -340,7 +350,7 @@ class TwoStagesPrediction(object):
         self.recurrent_hpc = []
         for ii in range(self.recurrent_modes):
             print('Stage 1 iter: ' + str(ii))
-            self.recurrent_base.append(BaseSvc())
+            #self.recurrent_base.append(BaseSvc())
 
             if np.sum(y_) > 2:
                 self.basemodel = BaseSvc()
@@ -369,7 +379,7 @@ class TwoStagesPrediction(object):
 
     def _fit_mode(self, x, y):
         self.basemodel.fit(x, y)
-        proba = self._shuffle_hm(x, y)
+        proba = self._hitprobability(x, y)
         mask_ = y == 1
         proba_tmp = proba.copy()
         proba_tmp[~mask_] = 0
@@ -463,7 +473,15 @@ class TwoStagesPrediction(object):
 
         return data_array, dict_array
 
-    def _shuffle_hm(self, x, y):
+    def _hitprobability(self, x, y):
+        if self.hitprobability_strategy == 'clustering':
+            return self._cluster_hitprobability(x, y)
+        elif self.hitprobability_strategy == 'window':
+            return self._window_hitprobability(x, y)
+        else:
+            return self._shufflesplit(x, y)
+
+    def _shufflesplit(self, x, y):
         """
         Random sampling to estimate the probability of a hit for each subjects from the parametrized model
         :param x: Input examples X features
@@ -490,3 +508,89 @@ class TwoStagesPrediction(object):
             print(proba)
         self.basemodel.fit(x, y, hyperparams_optim=False)
         return proba
+
+    def _cluster_hitprobability(self, x, y):
+        """
+        Evaluate clusters to estimate the probability of a hit for each subjects from the parametrized model
+        :param x: Input examples X features
+        :param y: Labels to predict
+        :return: Probability of hit for each examples
+        """
+        hm_count = np.zeros_like(y).astype(float)
+        hm = np.zeros_like(y).astype(float)
+        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+
+        ind = self._cluster(x, 35)
+
+        for cluster_id in np.unique(ind):
+            test = np.argwhere(ind == cluster_id)[:, 0]
+            train = np.argwhere(ind != cluster_id)[:, 0]
+            #print test
+            self.basemodel.fit(x[train, :], y[train], hyperparams_optim=False)
+            hm_count[test] += 1.
+            hm[test] += (self.basemodel.predict(x[test, :]) == y[test]).astype(float)
+
+        proba = hm / hm_count
+        if self.verbose:
+            # print('H/M count:')
+            # print(hm_count)
+            print('Proba:')
+            print(proba)
+        self.basemodel.fit(x, y, hyperparams_optim=False)
+        return proba
+
+    def _window_hitprobability(self, x, y):
+        """
+        Evaluate a window of clusters to estimate the probability of a hit for each subjects from the parametrized model
+        :param x: Input examples X features
+        :param y: Labels to predict
+        :return: Probability of hit for each examples
+        """
+        hm_count = np.zeros_like(y).astype(float)
+        hm = np.zeros_like(y).astype(float)
+        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+        skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+
+        ind = self._cluster(x, x.shape[0])
+        ind = np.argsort(ind)
+
+        for i in range(self.n_iter):
+            # variable window size between 10% and 50%
+            window_size = np.random.randint(len(ind)*0.1, len(ind)*0.5)
+            train, test = self._window_indexes(ind, window_size)
+            self.basemodel.fit(x[train, :], y[train], hyperparams_optim=False)
+            hm_count[test] += 1.
+            hm[test] += (self.basemodel.predict(x[test, :]) == y[test]).astype(float)
+
+        proba = hm / hm_count
+        if self.verbose:
+            # print('H/M count:')
+            # print(hm_count)
+            print('Proba:')
+            print(proba)
+        self.basemodel.fit(x, y, hyperparams_optim=False)
+        return proba
+
+    def _cluster(self, x, n_clusters):
+        # Normalize feature wise
+        x_ = scale(x, axis=0, with_mean=True, with_std=True, copy=True)
+
+        row_dist = np.corrcoef(x_)
+        # row_dist = data
+        row_clusters = linkage(row_dist, method='ward')
+        ind = fcluster(row_clusters, n_clusters, criterion='maxclust')
+        return ind
+
+    def _window_indexes(self, x, test_size):
+        seed_ = np.random.randint(0, x.shape[0] + 1)
+        mask = np.zeros_like(x).astype(bool)
+
+        if seed_ > x.shape[0] - test_size:
+            n_pre_index = test_size - (x.shape[0] - seed_)
+            mask[seed_ - n_pre_index:] = True
+        else:
+            mask[seed_:seed_ + test_size] = True
+        train = x[~mask]
+        test = x[mask]
+
+        return train, test
