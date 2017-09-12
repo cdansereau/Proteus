@@ -150,7 +150,7 @@ class classif:
             return df
         else:
             return []
-            print "ZERO!!"
+            print("ZERO!!")
         #print "Decision function : ", df
         #return df
 

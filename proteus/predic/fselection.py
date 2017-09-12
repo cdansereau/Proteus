@@ -44,7 +44,7 @@ def get_opt_model_features_nbest(x,y,w):
         all_nfeatures.append(i)
         all_scores.append(score)
         if score > best_score:
-            print 'New best: ', best_score
+            print('New best: ', best_score)
             best_score = score
             best_clf = clf
             best_i = i
@@ -61,7 +61,7 @@ def get_opt_model_features_std(x,y,w,std_step=0.25):
 
         # grid search and SVM
         candidat_f = fselect.threhold_std(w,i)
-        print candidat_f.shape
+        print(candidat_f.shape)
         if len(candidat_f)>0:
             clf = svm.SVC(kernel='linear', class_weight='balanced',C=0.01)
             clf.probability = True
@@ -73,7 +73,7 @@ def get_opt_model_features_std(x,y,w,std_step=0.25):
                 best_score = score
                 best_clf = clf
                 best_i = i
-                print 'New best: ', best_score
+                print('New best: ', best_score)
 
     return best_clf,fselect.threhold_std(w,best_i),best_i,all_nfeatures,all_scores
 
@@ -104,7 +104,7 @@ def get_opt_model_features_std_sv(x,y,w,alpha=0.8):
                 best_clf = clf
                 best_i = i
                 best_nsv = clf.n_support_
-                print 'New best: ', best_score
+                print('New best: ', best_score)
 
     return best_clf,fselect.threhold_std(w,best_i),best_i,all_nfeatures,all_scores,best_nsv
 
@@ -117,7 +117,7 @@ def nBest(w,n,verbose=False):
     else:
         sorted_avg = np.argsort(w)
     if verbose:
-        print sorted_avg
+        print(sorted_avg)
     
     return sorted_avg[-n:]
 
@@ -131,7 +131,7 @@ def threhold_std(w,nstd=2, verbose=False):
         candidates_idx = np.argwhere(w >= w_scores)
     
     if verbose:
-        print candidates_idx
+        print(candidates_idx)
     
     return candidates_idx[:,0]
 
@@ -142,11 +142,11 @@ def irelief(x,y):
     # irelief 
     fs = irelief_mvpa.IterativeReliefOnline()
     ds2 = fs._call(ds)
-    return  ds2.samples.flatten().flatten()
+    return ds2.samples.flatten().flatten()
 
 def irelief_cross(x,y,folds=10,verbose=True):
 
-    print "iRelief ..."
+    print("iRelief ...")
     #format the dataset
     w=[]
     if folds == 1:
@@ -157,7 +157,7 @@ def irelief_cross(x,y,folds=10,verbose=True):
             ds = dataset_wizard(x[train,:], targets=y[train])
             samps = ds.samples
             if verbose:
-                print "iRelief, sample size: ", samps.shape[:2]
+                print("iRelief, sample size: ", samps.shape[:2])
             w_tmp = irelief(x[train,:], y[train])
             #print(samps.shape[:2])
             if len(w)>0:

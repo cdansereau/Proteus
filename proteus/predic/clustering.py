@@ -122,7 +122,7 @@ def getWindowCluster(timeseries,nclusters=12,window_size=20):
         else:
             binary_mat = np.vstack((binary_mat, ts.mat2vec(tmp_mat)[np.newaxis,:]))
 
-    print binary_mat.shape
+    print(binary_mat.shape)
     return binary_mat
 
 def getWindows(timeseries,window_size=20,vectorize=True):

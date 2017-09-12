@@ -20,7 +20,7 @@ def custom_scale(x):
 
 
 def estimate_std(p, n):
-    print p, n, np.sqrt(p * (1 - p) / n)
+    print(p, n, np.sqrt(p * (1 - p) / n))
     return np.sqrt(p * (1 - p) / n)
 
 
@@ -163,7 +163,7 @@ def compute_acc_conf(x, y, confounds, verbose=False, balanced=True, loo=False, n
     recall = []
 
     if len(np.unique(y)) == 1:
-        print 'Unique class: 100%', np.sum(encoder.transform(y) == 0) / len(y)
+        print('Unique class: 100%', np.sum(encoder.transform(y) == 0) / len(y))
         return (1., 0., len(y))
 
     for i, (train, test) in enumerate(cv):
@@ -204,11 +204,11 @@ def compute_acc_conf(x, y, confounds, verbose=False, balanced=True, loo=False, n
             y_pred.append(clf.predict(xtest))
         if verbose:
             print('nSupport: ', clf.n_support_)
-            print "Train:", clf.score(xtrain, ytrain)
-            print "Test :", clf.score(xtest, ytest)
-            print "Prediction :", clf.predict(xtest)
-            print "Real Labels:", ytest
-            print('Precision:', prec[-1], 'Recall:', recall[-1])
+            print("Train:", clf.score(xtrain, ytrain))
+            print("Test :", clf.score(xtest, ytest))
+            print("Prediction :", clf.predict(xtest))
+            print("Real Labels:", ytest)
+            print('Precision:', prec[-1], 'Recall:', recall[-1]))
     y_pred = np.array(y_pred)[:, 0]
     if loo:
         total_std_test_score = estimate_std(metrics.accuracy_score(encoder.transform(y), np.array(y_pred)), len(y))
@@ -258,8 +258,8 @@ def basicconn(skf, X, y):
         # Test
         # pred = clf.predict(selectf.transform(X[test_index]))
         pred = clf.predict(X[test_index])
-        print "Target     : ", y[test_index]
-        print "Prediction : ", pred
+        print("Target     : ", y[test_index])
+        print("Prediction : ", pred)
         matchs = np.equal(pred, y[test_index])
         score = np.divide(np.sum(matchs), np.float64(matchs.size))
         total_score = score + total_score
@@ -284,8 +284,8 @@ def splitconn(skf, X, y):
         pred1 = clf1.decision_function(X[test_index, 0:2475:1])
         pred2 = clf2.decision_function(X[test_index, 2475:4950:1])
         predfinal = clf3.predict(np.matrix([pred1, pred2]).transpose())
-        print "Target     : ", y[test_index]
-        print "Prediction : ", predfinal
+        print("Target     : ", y[test_index])
+        print("Prediction : ", predfinal)
         matchs = np.equal(predfinal, y[test_index])
         score = np.divide(np.sum(matchs), np.float64(matchs.size))
         total_score = score + total_score
@@ -324,8 +324,8 @@ def multisplit(skf, X, y, stepsize=1000):
             k += 1
         # Final prediction
         predfinal = clf3.predict(selectf.transform(predtest))
-        print "Target     : ", y[test_index]
-        print "Prediction : ", predfinal
+        print("Target     : ", y[test_index])
+        print("Prediction : ", predfinal)
         matchs = np.equal(predfinal, y[test_index])
         score = np.divide(np.sum(matchs), np.float64(matchs.size))
         total_score = score + total_score

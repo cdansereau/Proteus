@@ -102,7 +102,7 @@ class SBP:
 
         ### extract w values
         xw, xw2 = self.get_w(x, confounds)
-        print 'xw sub data', xw[0, :]
+        print('xw sub data', xw[0, :])
         if self.verbose: print("Subtype extraction, Time elapsed: {}s)".format(int(time.time() - start)))
 
         ### Include extra covariates

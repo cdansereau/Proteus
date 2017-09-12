@@ -114,7 +114,7 @@ class clusteringST:
             ref_avg_rmaps = np.array(self.normalized_net_template).mean(1)
             avrg_rmaps = data.mean(2)
             scaling_factor = ref_avg_rmaps / avrg_rmaps
-            print ref_avg_rmaps.shape, avrg_rmaps.shape, scaling_factor.shape
+            print(ref_avg_rmaps.shape, avrg_rmaps.shape, scaling_factor.shape)
             return np.swapaxes(np.swapaxes(data, 0, 2) * np.swapaxes(scaling_factor, 0, 1), 0, 2)
 
     def _robust_st(self, net_data_low, nSubtypes, n_iter=50):
@@ -153,7 +153,7 @@ class clusteringST:
 
             for j in range(nSubtypes):
                 mask_stable = (stab_[ind_st == j + 1, :].mean(0) > stab_thereshold)[ind_st == j + 1]
-                if self.verbose: print 'Robust: new N ', mask_stable.sum(), ' old N ', mask_stable.shape
+                if self.verbose: print('Robust: new N ', mask_stable.sum(), ' old N ', mask_stable.shape)
                 data_ = net_data_low[ind_st == j + 1, i, :][mask_stable, :]
                 if j == 0:
                     st_templates_tmp = np.median(data_, axis=0)[np.newaxis, ...]
@@ -189,7 +189,7 @@ class clusteringST:
 
         for j in range(nSubtypes):
             mask_stable = (stab_[ind_st == j + 1, :].mean(0) > stab_thereshold)[ind_st == j + 1]
-            if self.verbose: print 'Robust: new N ', mask_stable.sum(), ' old N ', mask_stable.shape
+            if self.verbose: print('Robust: new N ', mask_stable.sum(), ' old N ', mask_stable.shape)
             data_ = net_data_low[ind_st == j + 1, :][mask_stable, :]
             if j == 0:
                 st_templates_tmp = np.median(data_, axis=0)[np.newaxis, ...]
@@ -328,7 +328,7 @@ class clusteringST:
             if i == 0:
                 st_templates = st_templates_tmp[np.newaxis, ...]
             else:
-                print st_templates.shape, st_templates_tmp.shape
+                print(st_templates.shape, st_templates_tmp.shape)
                 st_templates = np.vstack((st_templates, st_templates_tmp[np.newaxis, ...]))
 
         self.st_templates_l2 = st_templates
@@ -452,7 +452,7 @@ class clusteringST:
             else:
                 self.assign_net = np.vstack(
                     ((self.assign_net, self.assigneDist(net_data[i, :, :], self.valid_cluster, self.valid_net_idx))))
-        print 'Size of the new data map: ', self.assign_net.shape
+        print('Size of the new data map: ', self.assign_net.shape)
         # group subjects with the most network classifing them together
         # compute the consensus clustering
         self.consensus = cls.hclustering(self.assign_net, self.nSubtypes)
