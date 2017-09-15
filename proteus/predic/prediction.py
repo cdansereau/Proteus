@@ -2,7 +2,7 @@ __author__ = 'Christian Dansereau'
 
 import numpy as np
 from sklearn.feature_selection import SelectFpr
-from sklearn.model_selection import StratifiedKFold,LeaveOneOut
+from sklearn.model_selection import StratifiedKFold, LeaveOneOut
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn import svm
 import predlib as plib
@@ -208,7 +208,7 @@ def compute_acc_conf(x, y, confounds, verbose=False, balanced=True, loo=False, n
             print("Test :", clf.score(xtest, ytest))
             print("Prediction :", clf.predict(xtest))
             print("Real Labels:", ytest)
-            print('Precision:', prec[-1], 'Recall:', recall[-1]))
+            print('Precision:', prec[-1], 'Recall:', recall[-1])
     y_pred = np.array(y_pred)[:, 0]
     if loo:
         total_std_test_score = estimate_std(metrics.accuracy_score(encoder.transform(y), np.array(y_pred)), len(y))

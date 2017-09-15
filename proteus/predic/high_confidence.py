@@ -1,15 +1,13 @@
 __author__ = 'Christian Dansereau'
 
 """
-Confidence prediction framework
+Highly predictable cases framework
 This is a generic implementation of the CPF
-All right reserved 2016
+Copyright 2016 Christian Dansereau all right reserved
 """
 import numpy as np
 from sklearn.svm import SVC, SVR
 from sklearn.linear_model import LogisticRegression
-#from sklearn.grid_search.GridSearchCV
-#from sklearn.cross_validation import StratifiedShuffleSplit, ShuffleSplit
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit
 from sklearn.preprocessing import StandardScaler
@@ -17,8 +15,6 @@ from sklearn.preprocessing import scale
 
 from scipy.cluster.hierarchy import linkage
 from scipy.cluster.hierarchy import fcluster
-from sklearn.metrics import accuracy_score
-import copy
 
 
 class nullClassifier(object):
@@ -36,14 +32,19 @@ class BaseSvc(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        self.clf = SVC(C=1., cache_size=500, kernel='linear', class_weight='balanced', probability=False,
-                  decision_function_shape='ovr')
+        self.clf = SVC(C=1., cache_size=1000, kernel='linear', class_weight='balanced', probability=False,
+                       decision_function_shape='ovr')
         self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
+        #self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
+        #                            cv=5, n_jobs=-1,
+        #                           scoring=self.scoring_metric)
+
 
     def fit(self, x, y, hyperparams_optim=True):
         if hyperparams_optim & (np.sum(y) > 2):
+
             self.gridclf.fit(x, y)
             self.clf = self.gridclf.best_estimator_
             self.gridclf.cv_results_ = None
