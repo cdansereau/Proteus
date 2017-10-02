@@ -258,18 +258,13 @@ class TwoStagesPrediction(object):
         else:
             self.confidencemodel = confidencemodel
 
-    def _adjust_gamma(self, proba, thresh=[], min_gamma=[], gamma_auto_adjust=[]):
+    def _adjust_gamma(self, proba):
 
-        if thresh == []:
-            thresh = self.thresh_ratio
-
-        if min_gamma == []:
-            min_gamma = self.min_gamma
-
-        if gamma_auto_adjust == []:
-            gamma_auto_adjust = self.gamma_auto_adjust
-
+        thresh = self.thresh_ratio
+        min_gamma = self.min_gamma
+        gamma_auto_adjust = self.gamma_auto_adjust
         gamma = self.gamma
+
         if gamma_auto_adjust:
             while (np.mean(proba >= gamma) <= thresh) and (gamma > min_gamma):
                 gamma = gamma - 0.01
@@ -278,6 +273,18 @@ class TwoStagesPrediction(object):
         #    return np.zeros_like(proba), gamma
 
         return (proba >= gamma).astype(int), gamma
+
+    def _adjust_gamma_classes(self, proba, y):
+
+        hm_y = np.zeros_like(y).astype(float)
+        auto_gamma = []
+        for y_class in np.unique(y):
+            mask_ = y == y_class
+            hm_, adjusted_gamma = self._adjust_gamma(proba[mask_])
+            hm_y[mask_] = hm_
+            auto_gamma.append(adjusted_gamma)
+
+        return hm_y, auto_gamma
 
     def fit(self, x, x2, y):
         """
@@ -297,7 +304,7 @@ class TwoStagesPrediction(object):
         self.hitproba.fit(x_, self.training_hit_probability)
 
         # Learn high confidence for all classes
-        hm_y, auto_gamma = self._adjust_gamma(self.training_hit_probability)
+        hm_y, auto_gamma = self._adjust_gamma_classes(self.training_hit_probability, y)
         self.joint_class_hc = HC_LR()
         self.joint_class_hc.fit(x_, hm_y)
 
@@ -479,6 +486,8 @@ class TwoStagesPrediction(object):
             return self._cluster_hitprobability(x, y)
         elif self.hitprobability_strategy == 'window':
             return self._window_hitprobability(x, y)
+        elif self.hitprobability_strategy == 'avg_cluster':
+            return self._avg_cluster_hitprobability(x, y)
         else:
             return self._shufflesplit(x, y)
 
@@ -509,6 +518,29 @@ class TwoStagesPrediction(object):
             print(proba)
         self.basemodel.fit(x, y, hyperparams_optim=False)
         return proba
+
+    def _avg_cluster_hitprobability(self, x, y, n_clusters=30):
+        """
+        Random sampling to estimate the probability of a hit for each subjects from the parametrized model
+        :param x: Input examples X features
+        :param y: Labels to predict
+        :param n_clusters: Number of clusters, the individual hit probability inside each cluster will be averaged
+        :return: Probability of hit for each examples
+        """
+
+        # Compute the individual Hit probability
+        proba = self._shufflesplit(x, y)
+
+        # average the individual hit probability for each cluster
+        ind = self._cluster(x, x.shape[0]/2.)
+
+        avg_proba = np.copy(proba)
+
+        for cluster in np.unique(ind):
+            mask_ = ind == cluster
+            avg_proba[mask_] = avg_proba[mask_].mean()
+
+        return avg_proba
 
     def _cluster_hitprobability(self, x, y):
         """
