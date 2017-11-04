@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import classification_report,accuracy_score
 from sklearn.metrics import roc_curve, auc
-
+from sklearn import metrics
 
 def plot_roc(y_test,y_score):
 
@@ -221,3 +221,39 @@ def classif_repo_bimode(y_ref,y_pred,lr_decision_sz,lr_decision_ctrl):
     print classification_report(y_ref[y_pred==0][lr_decision_ctrl[y_pred==0]<=0], y_pred[y_pred==0][lr_decision_ctrl[y_pred==0]<=0])
     print 'ACC: '+str(accuracy_score(y_ref[y_pred==0][lr_decision_ctrl[y_pred==0]<=0],y_pred[y_pred==0][lr_decision_ctrl[y_pred==0]<=0]))
     print '##################################################################'
+
+
+def scores(y_ref, y_pred):
+    results_ = []
+
+    if len(y_ref.shape) == 1:
+        y_ref = y_ref[:, np.newaxis]
+
+    if len(y_pred.shape) == 1:
+        y_pred = y_pred[:, np.newaxis]
+
+    for ii in range(y_ref.shape[1]):
+        # print ii
+        tn, fp, fn, tp = metrics.confusion_matrix(y_ref[:, ii], y_pred[:, ii]).ravel().astype(float)
+
+        precision = tp / (tp + fp)
+        specificity = tn / (tn + fp)
+        recall = tp / (tp + fn)
+
+        results_.append([precision, specificity, recall, y_pred[:, ii].sum()])
+
+    return results_
+
+
+def print_scores(scores):
+    for ii in range(len(scores)):
+        # print ii
+        precision, specificity, recall, n_ = scores[ii]
+        print('Class %d Precision: %5.2f Specificity: %5.2f Recall: %5.2f N: %d' % (
+        ii, precision * 100., specificity * 100., recall * 100., n_))
+
+
+    precision, specificity, recall, n_ = np.stack(scores).mean(0)
+    print('Total Precision: %5.2f Specificity: %5.2f Recall: %5.2f N: %d' % (
+        precision * 100., specificity * 100., recall * 100., n_))
+# scores_(y_mb, pred_y)
