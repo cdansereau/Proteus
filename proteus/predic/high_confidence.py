@@ -63,6 +63,40 @@ class BaseSvc(object):
             return None
         return self.clf.decision_function(x)
 
+class BaseSvc_rbf(object):
+    def __init__(self, scoring_metric='accuracy', param_grid=dict(gamma=(np.logspace(-3, 0, 15)), C=(np.logspace(-2, 1, 15)))):
+        self.scoring_metric = scoring_metric
+        self.param_grid = param_grid
+        self.clf = SVC(C=1., cache_size=1000, kernel='rbf', class_weight='balanced', probability=False,
+                       decision_function_shape='ovr')
+        self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
+                                    cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
+                                    scoring=self.scoring_metric)
+        #self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
+        #                            cv=5, n_jobs=-1,
+        #                           scoring=self.scoring_metric)
+
+
+    def fit(self, x, y, hyperparams_optim=True):
+        if hyperparams_optim & (np.sum(y) > 2):
+
+            self.gridclf.fit(x, y)
+            self.clf = self.gridclf.best_estimator_
+            self.gridclf.cv_results_ = None
+        else:
+            self.clf.fit(x, y)
+
+    def predict(self, x):
+        if getattr(self, 'clf', None) is None:
+            print('The model was not fit before prediction')
+            return None
+        return self.clf.predict(x)
+
+    def decision_function(self, x):
+        if getattr(self, 'clf', None) is None:
+            print('The model was not fit before prediction')
+            return None
+        return self.clf.decision_function(x)
 
 class BaseLR(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-0.2, 1, 15)))):
