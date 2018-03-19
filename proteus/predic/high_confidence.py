@@ -270,7 +270,7 @@ class TwoStagesPrediction(object):
     """
 
     def __init__(self, verbose=True, basemodel=[], confidencemodel=[], gamma=1., n_iter=100, min_gamma=0.8,
-                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True, recurrent_modes=3, hitprobability_strategy='shuffle'):
+                 thresh_ratio=0.1, shuffle_test_split=0.2, gamma_auto_adjust=True, recurrent_modes=3, hitprobability_strategy='shuffle',random_state=1):
         self.verbose = verbose
         self.gamma = gamma
         self.n_iter = n_iter
@@ -282,6 +282,7 @@ class TwoStagesPrediction(object):
         self.gamma_auto_adjust = gamma_auto_adjust
         self.recurrent_modes = recurrent_modes
         self.hitprobability_strategy = hitprobability_strategy
+        self.random_state = random_state
 
         if basemodel == []:
             self.basemodel = BaseSvc()
@@ -534,7 +535,7 @@ class TwoStagesPrediction(object):
         """
         hm_count = np.zeros_like(y).astype(float)
         hm = np.zeros_like(y).astype(float)
-        skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+        skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=self.random_state)
 
         for train, test in skf.split(x, y):
             # rnd_proba = np.abs(np.random.randn(len(train))*5.+1.)
@@ -585,7 +586,7 @@ class TwoStagesPrediction(object):
         """
         hm_count = np.zeros_like(y).astype(float)
         hm = np.zeros_like(y).astype(float)
-        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=self.random_state)
 
         ind = self._cluster(x, 35)
 
@@ -615,8 +616,8 @@ class TwoStagesPrediction(object):
         """
         hm_count = np.zeros_like(y).astype(float)
         hm = np.zeros_like(y).astype(float)
-        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
-        skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=1)
+        #skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=self.random_state)
+        skf = StratifiedShuffleSplit(n_splits=self.n_iter, test_size=self.shuffle_test_split, random_state=self.random_state)
 
         ind = self._cluster(x, x.shape[0])
         ind = np.argsort(ind)
