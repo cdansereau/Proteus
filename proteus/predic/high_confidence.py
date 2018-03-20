@@ -33,7 +33,7 @@ class BaseSvc(object):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
         self.clf = SVC(C=1., cache_size=1000, kernel='linear', class_weight='balanced', probability=False,
-                       decision_function_shape='ovr')
+                       decision_function_shape='ovr', random_state=1)
         self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
@@ -68,7 +68,7 @@ class BaseSvc_rbf(object):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
         self.clf = SVC(C=1., cache_size=1000, kernel='rbf', class_weight='balanced', probability=False,
-                       decision_function_shape='ovr')
+                       decision_function_shape='ovr', random_state=1)
         self.gridclf = GridSearchCV(self.clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
@@ -102,7 +102,7 @@ class BaseLR(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-0.2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l2', solver='liblinear', max_iter=300)
+        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l2', solver='liblinear', max_iter=300, random_state=1)
         self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
@@ -135,7 +135,7 @@ class ConfidenceLR(object):
         self.t = []
 
     def _fit_branchmodel(self, xwl2, hm_y):
-        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300)
+        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300, random_state=1)
         gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                scoring=self.scoring_metric)
@@ -181,7 +181,7 @@ class MulticlassLR(object):
         self.param_grid = param_grid
 
     def _fit_branchmodel(self, xwl2, hm_y):
-        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300)
+        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300, random_state=1)
         gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                scoring=self.scoring_metric)
@@ -212,7 +212,7 @@ class HC_LR(object):
     def __init__(self, scoring_metric='accuracy', param_grid=dict(C=(np.logspace(-0.2, 1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300)
+        clf = LogisticRegression(C=1., class_weight='balanced', penalty='l1', solver='liblinear', max_iter=300, random_state=1)
         self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                     cv=StratifiedShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
@@ -245,7 +245,7 @@ class HitProbability(object):
     def __init__(self, scoring_metric='r2', param_grid=dict(C=(np.logspace(-0.1, 0.1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = SVR(C=1., cache_size=500, kernel='linear')
+        clf = SVR(C=1., cache_size=500, kernel='linear', random_state=1)
         self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                     cv=ShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
