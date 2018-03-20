@@ -245,7 +245,7 @@ class HitProbability(object):
     def __init__(self, scoring_metric='r2', param_grid=dict(C=(np.logspace(-0.1, 0.1, 15)))):
         self.scoring_metric = scoring_metric
         self.param_grid = param_grid
-        clf = SVR(C=1., cache_size=500, kernel='linear', random_state=1)
+        clf = SVR(C=1., cache_size=500, kernel='linear')
         self.gridclf = GridSearchCV(clf, param_grid=self.param_grid,
                                     cv=ShuffleSplit(n_splits=50, test_size=.2, random_state=1), n_jobs=-1,
                                     scoring=self.scoring_metric)
